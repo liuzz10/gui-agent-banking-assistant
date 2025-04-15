@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Chatbot</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    .chatbot-container {
+      width: 100%;
+      height: 400px;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+      font-size: 14px;
+    }
+    .chatbot-header {
+      background: #004080;
+      color: white;
+      padding: 10px;
+      text-align: center;
+    }
+    .chatbot-messages {
+      flex: 1;
+      padding: 10px;
+      overflow-y: auto;
+      background: #f9f9f9;
+    }
+    .chatbot-input {
+      display: flex;
+      border-top: 1px solid #ccc;
+    }
+    .chatbot-input input {
+      flex: 1;
+      border: none;
+      padding: 10px;
+      font-size: 14px;
+    }
+    .chatbot-input button {
+      background: #004080;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      cursor: pointer;
+    }
+    .message {
+      margin-bottom: 8px;
+    }
+    .message.user { text-align: right; color: #004080; }
+    .message.assistant { text-align: left; color: black; }
+  </style>
+</head>
+<body>
+  <div class="chatbot-container">
+    <div class="chatbot-header">Assistant</div>
+    <div class="chatbot-messages" id="messages"></div>
+    <div class="chatbot-input">
+      <input type="text" id="chat-input" placeholder="Type a message...">
+      <button onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+
+  <script>
+    let chatHistory = [];
+    let stepIndex = 0;
+    let lastSelectorSent = null;
+
+    function appendMessage(role, text) {
+      const messages = document.getElementById("messages");
+      const div = document.createElement("div");
+      div.className = "message " + role;
+      div.innerText = text;
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function clearHighlights() {
+      document.querySelectorAll('.highlight').forEach(el => el.classList.remove('highlight'));
+    }
+
+    function highlight(selector) {
+      if (selector && selector !== lastSelectorSent) {
+        window.parent.postMessage({ selector: selector, instruction: "highlight" }, "*");
+        lastSelectorSent = selector;
+      }
+    }
+
+    async function sendMessage() {
+      console.log("💬 sendMessage() called");
+      const input = document.getElementById("chat-input");
+      const message = input.value.trim();
+      if (!message) return;
+
+      console.log("📝 Message to send:", message);
+
+      appendMessage("user", message);
+      chatHistory.push({ role: "user", content: message });
+      input.value = "";
+
+      const res = await fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: chatHistory, stepIndex: stepIndex })
+      });
+
+      const data = await res.json();
+      const reply = data.botMessage || "I didn't understand that.";
+      appendMessage("assistant", reply);
+      chatHistory.push({ role: "assistant", content: reply });
+
+      clearHighlights();
+
+      if (data.step && data.step.selector) {
+        highlight(data.step.selector);
+
+        const prompt = "Please click the highlighted button to continue.";
+        appendMessage("assistant", prompt);
+        chatHistory.push({ role: "assistant", content: prompt });
+
+        stepIndex = data.stepIndex + 1;
+      }
+    }
+
+    // ✅ Attach safe keypress listener
+    document.addEventListener("DOMContentLoaded", () => {
+      const input = document.getElementById("chat-input");
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") sendMessage();
+      });
+    });
+  </script>
+</body>
+</html>

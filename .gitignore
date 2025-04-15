@@ -1,0 +1,31 @@
+# Ignore Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environment
+venv/
+.env
+.env.*
+
+# Mac system files
+.DS_Store
+
+# VS Code or PyCharm config
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Compiled files
+*.so
+*.egg-info/
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# Node (if using npm for frontend)
+node_modules/
+dist/
+build/

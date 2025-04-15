@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Online Banking - Account</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <nav>
+    <h1>My Online Bank</h1>
+    <div class="nav-buttons">
+      <button id="nav-account" onclick="window.location.href='account.html'">Account</button>
+      <button id="nav-transfer" onclick="window.location.href='pay_transfer.html'">Pay & Transfer</button>
+    </div>
+  </nav>
+  <div class="content">
+    <div class="account-box">
+      <h2>Checking Account</h2>
+      <p class="balance">$3,542.30</p>
+    </div>
+    <div class="account-box">
+      <h2>Savings Account</h2>
+      <p class="balance">$12,874.10</p>
+    </div>
+  </div>
+  <iframe src="chatbot.html" style="
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 300px;
+    height: 400px;
+    border: none;
+    z-index: 9999;
+  "></iframe>
+  <script>
+    window.addEventListener("message", (event) => {
+      const { selector, instruction } = event.data;
+
+      // ✅ Ignore messages not from your chatbot
+      if (instruction !== "highlight" || typeof selector !== "string") return;
+
+      console.log("📩 Received postMessage from chatbot:", event.data);
+
+      const el = document.querySelector(selector);
+      console.log("el", el)
+      if (el) el.classList.add("highlight");
+      console.log("el", el)
+    });
+  </script>
+</body>
+
+</html>
