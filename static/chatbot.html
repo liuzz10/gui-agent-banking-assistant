@@ -63,8 +63,9 @@
   <script>
     let chatHistory = [];
     let stepIndex = 0;
+    let intent = null;
     let lastSelectorSent = null;
-
+  
     function appendMessage(role, text) {
       const messages = document.getElementById("messages");
       const div = document.createElement("div");
@@ -73,61 +74,115 @@
       messages.appendChild(div);
       messages.scrollTop = messages.scrollHeight;
     }
-
+  
     function clearHighlights() {
       document.querySelectorAll('.highlight').forEach(el => el.classList.remove('highlight'));
     }
-
+  
     function highlight(selector) {
       if (selector && selector !== lastSelectorSent) {
-        window.parent.postMessage({ selector: selector, instruction: "highlight" }, "*");
+        console.log(1)
+        window.parent.postMessage({ selector, instruction: "highlight" }, "*");
         lastSelectorSent = selector;
+
+        // Try to access the button in the parent window (outside iframe)
+        const el = window.parent.document.querySelector(selector);
+        if (el && !el.classList.contains("click-hooked")) {
+          el.classList.add("click-hooked");
+
+          // ✅ Only increment step when user clicks the highlighted element
+          el.addEventListener("click", () => {
+            stepIndex += 1;
+            console.log("✅ User clicked button. New stepIndex:", stepIndex);  // ← track click progress
+            sendMessage(); // move to the next step
+          });
+        }
       }
     }
-
+  
     async function sendMessage() {
-      console.log("💬 sendMessage() called");
-      const input = document.getElementById("chat-input");
-      const message = input.value.trim();
-      if (!message) return;
+      try {
+        console.log("💬 sendMessage() called");
 
-      console.log("📝 Message to send:", message);
+        const input = document.getElementById("chat-input");
+        const message = input.value.trim();
+        if (!message) return;
 
-      appendMessage("user", message);
-      chatHistory.push({ role: "user", content: message });
-      input.value = "";
+        // Append user message
+        appendMessage("user", message);
+        chatHistory.push({ role: "user", content: message });
+        input.value = "";
 
-      const res = await fetch("/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: chatHistory, stepIndex: stepIndex })
-      });
+        // Send to backend
+        const res = await fetch("/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: chatHistory, stepIndex, intent })
+        });
 
-      const data = await res.json();
-      const reply = data.botMessage || "I didn't understand that.";
-      appendMessage("assistant", reply);
-      chatHistory.push({ role: "assistant", content: reply });
+        const data = await res.json();
+        console.log("📦 Backend response:", data);
 
-      clearHighlights();
+        // Append assistant reply
+        const reply = data.botMessage || "I didn't understand that.";
+        appendMessage("assistant", reply);
+        chatHistory.push({ role: "assistant", content: reply });
 
-      if (data.step && data.step.selector) {
-        highlight(data.step.selector);
+        // Highlight if applicable
+        clearHighlights();
+        if (data.step?.selector) {
+          try {
+            highlight(data.step.selector);
+            const prompt = "Please click the highlighted button to continue.";
+            appendMessage("assistant", prompt);
+            chatHistory.push({ role: "assistant", content: prompt });
+          } catch (err) {
+            console.error("⚠️ highlight() error:", err);
+          }
+        }
 
-        const prompt = "Please click the highlighted button to continue.";
-        appendMessage("assistant", prompt);
-        chatHistory.push({ role: "assistant", content: prompt });
+        // Update intent if newly discovered
+        if (data.intent && data.intent !== "unknown" && !intent) {
+          intent = data.intent;
+        }
 
-        stepIndex = data.stepIndex + 1;
+        // Save updated state
+        sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+        sessionStorage.setItem("stepIndex", stepIndex);
+        sessionStorage.setItem("intent", intent);
+        console.log("💾 State saved to sessionStorage");
+        
+      } catch (error) {
+        console.error("❌ sendMessage() failed:", error);
       }
     }
+  
+    window.addEventListener("DOMContentLoaded", () => {
+      // Restore chat state
+      chatHistory = JSON.parse(sessionStorage.getItem("chatHistory") || "[]");
+      stepIndex = Number(sessionStorage.getItem("stepIndex") || 0);
+      intent = sessionStorage.getItem("intent") || null;
 
-    // ✅ Attach safe keypress listener
-    document.addEventListener("DOMContentLoaded", () => {
+      console.log("chatHistory", chatHistory)
+
+      // Replay previous messages
+      for (const m of chatHistory) {
+        appendMessage(m.role, m.content);
+      }
+
+      // Setup input enter key handler
       const input = document.getElementById("chat-input");
       input.addEventListener("keydown", (e) => {
         if (e.key === "Enter") sendMessage();
       });
     });
-  </script>
+
+    window.addEventListener("beforeunload", () => {
+      sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+      sessionStorage.setItem("stepIndex", stepIndex);
+      sessionStorage.setItem("intent", intent);
+    });
+
+  </script>  
 </body>
 </html>

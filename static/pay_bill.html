@@ -2,28 +2,32 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Online Banking - Account</title>
+  <title>Online Banking - Pay & Transfer</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <nav>
     <h1>My Online Bank</h1>
     <div class="nav-buttons">
-      <button id="nav-account" onclick="window.location.href='index.html'">Account</button>
-      <button id="nav-paybill" onclick="window.location.href='pay_bill.html'">Pay Bill</button>
-      <button id="nav-transfer" onclick="window.location.href='etransfer.html'">E-transfer</button>
+        <button id="nav-account" onclick="window.location.href='index.html'">Account</button>
+        <button id="nav-paybill" onclick="window.location.href='pay_bill.html'">Pay Bill</button>
+        <button id="nav-transfer" onclick="window.location.href='etransfer.html'">E-transfer</button>
     </div>
   </nav>
+
   <div class="content">
-    <div class="account-box">
-      <h2>Checking Account</h2>
-      <p class="balance">$3,542.30</p>
-    </div>
-    <div class="account-box">
-      <h2>Savings Account</h2>
-      <p class="balance">$12,874.10</p>
+    <h2>Pay Bill</h2>
+
+    <div class="payee-box">
+      <button id="add-payee-button">+ Add New Payee</button>
+
+      <h3>Saved Payees</h3>
+      <div class="payee-list">
+        <button class="payee-button" id="payee-bchydro">BC Hydro</button>
+      </div>
     </div>
   </div>
+
   <iframe src="chatbot.html" style="
     position: fixed;
     bottom: 20px;
@@ -33,17 +37,14 @@
     border: none;
     z-index: 9999;
   "></iframe>
+
   <script>
     window.addEventListener("message", (event) => {
       const { selector, instruction } = event.data;
-
-      // ✅ Ignore messages not from your chatbot
       if (instruction !== "highlight" || typeof selector !== "string") return;
-
       const el = document.querySelector(selector);
       if (el) el.classList.add("highlight");
     });
   </script>
 </body>
-
 </html>

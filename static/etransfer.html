@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Online Banking - Account</title>
+  <title>Online Banking - E-Transfer</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -14,16 +14,22 @@
       <button id="nav-transfer" onclick="window.location.href='etransfer.html'">E-transfer</button>
     </div>
   </nav>
+
   <div class="content">
-    <div class="account-box">
-      <h2>Checking Account</h2>
-      <p class="balance">$3,542.30</p>
-    </div>
-    <div class="account-box">
-      <h2>Savings Account</h2>
-      <p class="balance">$12,874.10</p>
+    <h2>E-Transfer</h2>
+
+    <div class="payee-box">
+      <button id="add-contact-button">+ Add New Contact</button>
+
+      <h3>Saved Contacts</h3>
+      <div class="payee-list">
+        <button class="payee-button" id="contact-alex">Alex Chen — alex.chen@email.com</button>
+        <button class="payee-button" id="contact-sophia">Sophia Wang — sophia.wang@email.com</button>
+        <button class="payee-button" id="contact-david">David Kim — david.kim@email.com</button>
+      </div>
     </div>
   </div>
+
   <iframe src="chatbot.html" style="
     position: fixed;
     bottom: 20px;
@@ -33,17 +39,14 @@
     border: none;
     z-index: 9999;
   "></iframe>
+
   <script>
     window.addEventListener("message", (event) => {
       const { selector, instruction } = event.data;
-
-      // ✅ Ignore messages not from your chatbot
       if (instruction !== "highlight" || typeof selector !== "string") return;
-
       const el = document.querySelector(selector);
       if (el) el.classList.add("highlight");
     });
   </script>
 </body>
-
 </html>
