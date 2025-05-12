@@ -34,16 +34,39 @@
     z-index: 9999;
   "></iframe>
   <script>
+    let lastHighlightedSelector = null;
+
     window.addEventListener("message", (event) => {
       const { selector, instruction } = event.data;
 
-      // ✅ Ignore messages not from your chatbot
       if (instruction !== "highlight" || typeof selector !== "string") return;
 
-      const el = document.querySelector(selector);
-      if (el) el.classList.add("highlight");
+      lastHighlightedSelector = selector;
+
+      const elements = document.querySelectorAll(selector);
+      elements.forEach(el => el.classList.add("highlight"));
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!lastHighlightedSelector) return;
+
+      const elements = document.querySelectorAll(lastHighlightedSelector);
+      for (const el of elements) {
+        if (el === e.target || el.contains(e.target)) {
+          const chatbotIframe = document.querySelector("iframe");
+          const msg = `✅ You clicked: "${el.innerText.trim()}"`;
+
+          chatbotIframe.contentWindow.postMessage({
+            instruction: "log",
+            text: msg
+          }, "*");
+
+          break; // stop after first match
+        }
+      }
     });
   </script>
+
 </body>
 
 </html>

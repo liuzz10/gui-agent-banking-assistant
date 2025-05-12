@@ -19,16 +19,15 @@
     <h2>E-Transfer</h2>
 
     <div class="payee-box">
-      <button id="add-contact-button">+ Add New Contact</button>
-
+      <button class="contact-button" id="add-contact-button">+ Add New Contact</button>
+    
       <h3>Saved Contacts</h3>
       <div class="payee-list">
-        <button class="payee-button" id="contact-alex">Alex Chen — alex.chen@email.com</button>
-        <button class="payee-button" id="contact-sophia">Sophia Wang — sophia.wang@email.com</button>
-        <button class="payee-button" id="contact-david">David Kim — david.kim@email.com</button>
+        <button class="contact-button" id="contact-alex" onclick="window.location.href='send_to_alex.html'">Alex Chen — alex.chen@emailaddress.com</button>
+        <button class="contact-button" id="contact-sophia">Sophia Smiths — sophia.smiths@emailaddress.com</button>
+        <button class="contact-button" id="contact-david">David Kim — david.kim@emailaddress.com</button>
       </div>
-    </div>
-  </div>
+    </div>    
 
   <iframe src="chatbot.html" style="
     position: fixed;
@@ -41,12 +40,37 @@
   "></iframe>
 
   <script>
+    let lastHighlightedSelector = null;
+
     window.addEventListener("message", (event) => {
       const { selector, instruction } = event.data;
+
       if (instruction !== "highlight" || typeof selector !== "string") return;
-      const el = document.querySelector(selector);
-      if (el) el.classList.add("highlight");
+
+      lastHighlightedSelector = selector;
+
+      const elements = document.querySelectorAll(selector);
+      elements.forEach(el => el.classList.add("highlight"));
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!lastHighlightedSelector) return;
+      const elements = document.querySelectorAll(lastHighlightedSelector);
+      for (const el of elements) {
+        if (el === e.target || el.contains(e.target)) {
+          const chatbotIframe = document.querySelector("iframe");
+          const msg = `✅ You clicked: "${el.innerText.trim()}"`;
+
+          chatbotIframe.contentWindow.postMessage({
+            instruction: "log",
+            text: msg
+          }, "*");
+
+          break; // stop after first match
+        }
+      }
     });
   </script>
+
 </body>
 </html>

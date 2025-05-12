@@ -52,7 +52,7 @@
 </head>
 <body>
   <div class="chatbot-container">
-    <div class="chatbot-header">Assistant</div>
+    <div class="chatbot-header">Grace</div>
     <div class="chatbot-messages" id="messages"></div>
     <div class="chatbot-input">
       <input type="text" id="chat-input" placeholder="Type a message...">
@@ -76,113 +76,100 @@
     }
   
     function clearHighlights() {
-      document.querySelectorAll('.highlight').forEach(el => el.classList.remove('highlight'));
+      // No longer directly clearing — this can be triggered via message if needed
     }
   
-    function highlight(selector) {
-      if (selector && selector !== lastSelectorSent) {
-        console.log(1)
-        window.parent.postMessage({ selector, instruction: "highlight" }, "*");
-        lastSelectorSent = selector;
-
-        // Try to access the button in the parent window (outside iframe)
-        const el = window.parent.document.querySelector(selector);
-        if (el && !el.classList.contains("click-hooked")) {
-          el.classList.add("click-hooked");
-
-          // ✅ Only increment step when user clicks the highlighted element
-          el.addEventListener("click", () => {
-            stepIndex += 1;
-            console.log("✅ User clicked button. New stepIndex:", stepIndex);  // ← track click progress
-            sendMessage(); // move to the next step
-          });
-        }
-      }
+    function highlight(step) {
+      if (!step || !step.selector) return;
+  
+      const selector = step.selector;
+      console.log("selector", selector)
+      window.parent.postMessage({ selector, instruction: "highlight" }, "*");
+  
+      lastSelectorSent = selector;
+      // appendMessage("assistant", "Please click the highlighted button to continue.");
+      // chatHistory.push({ role: "assistant", content: "Please click the highlighted button to continue." });
     }
   
-    async function sendMessage() {
-      try {
-        console.log("💬 sendMessage() called");
+    function logUserAction(text) {
+      appendMessage("user", text);
+      chatHistory.push({ role: "user", content: text });
+      sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+    }
 
-        const input = document.getElementById("chat-input");
-        const message = input.value.trim();
-        if (!message) return;
-
-        // Append user message
+    async function sendMessage(auto = false, overrideMessage = "", stepName = null) {
+      const input = document.getElementById("chat-input");
+      const message = auto ? overrideMessage : input.value.trim();
+      if (!message && !auto) return;
+  
+      if (!auto) {
         appendMessage("user", message);
         chatHistory.push({ role: "user", content: message });
-        input.value = "";
-
-        // Send to backend
-        const res = await fetch("/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: chatHistory, stepIndex, intent })
-        });
-
-        const data = await res.json();
-        console.log("📦 Backend response:", data);
-
-        // Append assistant reply
-        const reply = data.botMessage || "I didn't understand that.";
-        appendMessage("assistant", reply);
-        chatHistory.push({ role: "assistant", content: reply });
-
-        // Highlight if applicable
-        clearHighlights();
-        if (data.step?.selector) {
-          try {
-            highlight(data.step.selector);
-            const prompt = "Please click the highlighted button to continue.";
-            appendMessage("assistant", prompt);
-            chatHistory.push({ role: "assistant", content: prompt });
-          } catch (err) {
-            console.error("⚠️ highlight() error:", err);
-          }
-        }
-
-        // Update intent if newly discovered
-        if (data.intent && data.intent !== "unknown" && !intent) {
-          intent = data.intent;
-        }
-
-        // Save updated state
-        sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
-        sessionStorage.setItem("stepIndex", stepIndex);
-        sessionStorage.setItem("intent", intent);
-        console.log("💾 State saved to sessionStorage");
-        
-      } catch (error) {
-        console.error("❌ sendMessage() failed:", error);
       }
+  
+      input.value = "";
+  
+      const res = await fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: chatHistory, stepIndex, intent, stepName })
+      });
+  
+      const data = await res.json();
+      const reply = data.botMessage || "I didn't understand that.";
+      appendMessage("assistant", reply);
+      chatHistory.push({ role: "assistant", content: reply });
+  
+      if (data.intent && data.intent !== "unknown") {
+        intent = data.intent;
+        sessionStorage.setItem("intent", intent);
+      }
+  
+      highlight(data.step);
+  
+      sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+      sessionStorage.setItem("stepIndex", data.stepIndex);
     }
   
     window.addEventListener("DOMContentLoaded", () => {
-      // Restore chat state
       chatHistory = JSON.parse(sessionStorage.getItem("chatHistory") || "[]");
       stepIndex = Number(sessionStorage.getItem("stepIndex") || 0);
       intent = sessionStorage.getItem("intent") || null;
-
-      console.log("chatHistory", chatHistory)
-
-      // Replay previous messages
-      for (const m of chatHistory) {
-        appendMessage(m.role, m.content);
-      }
-
-      // Setup input enter key handler
+  
+      for (const m of chatHistory) appendMessage(m.role, m.content);
+  
       const input = document.getElementById("chat-input");
       input.addEventListener("keydown", (e) => {
         if (e.key === "Enter") sendMessage();
       });
+  
+      const currentPage = window.parent.location.pathname.split("/").pop();
+
+      if (intent === "e_transfer") {
+        if (currentPage === "etransfer.html") {
+          sendMessage(true, "resuming", "check_transferee");
+        } else if (currentPage === "send_to_alex.html") {
+          sendMessage(true, "resuming", "enter_amount");
+        } else if (currentPage === "confirm_transfer.html") {
+          sendMessage(true, "resuming", "confirm_transfer");
+        }
+      }
     });
 
+    window.addEventListener("message", (event) => {
+      const { instruction, text } = event.data;
+      if (instruction === "log" && typeof text === "string") {
+        logUserAction(text);
+      }
+    });
+  
     window.addEventListener("beforeunload", () => {
       sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
       sessionStorage.setItem("stepIndex", stepIndex);
       sessionStorage.setItem("intent", intent);
     });
-
+  
   </script>  
+  
 </body>
 </html>

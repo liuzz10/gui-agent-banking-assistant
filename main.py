@@ -27,12 +27,48 @@ client = AzureOpenAI(
 
 flows = {
     "e_transfer": [
-        {"desc": "Click the 'E-transfer' tab", "selector": "#nav-transfer"},
-        {"desc": "Enter the payee name", "selector": "#payee-name"},
-        {"desc": "Enter the amount", "selector": "#amount"},
-        {"desc": "Click the 'Send' button", "selector": "#send-button"}
+        {"name": "go_to_tab", "desc": "Click the 'E-transfer' tab", "selector": "#nav-transfer"},
+        {"name": "check_transferee", "desc": "Is the person you want to transfer to listed on this page? If yes, select them. If not, click 'Add New Contact'.", "selector": ".contact-button"},
+        {"name": "enter_amount", "desc": "Enter the amount and click the 'Send' button", "selector": "#amount, #send-button"},
+        {"name": "confirm_transfer", "desc": "Click the 'Confirm' button to complete the transfer", "selector": "#confirm-button"}
     ]
 }
+
+def handle_step_override(intent: str, step_name: str, messages: list):
+    if intent == "e_transfer" and step_name == "check_transferee":
+        last_msg = messages[-1]["content"].lower().strip()
+
+        if last_msg in ["no", "not here", "nope"]:
+            return {
+                "intent": intent,
+                "step": {"name": "check_transferee"},
+                "stepIndex": 1,
+                "botMessage": "No problem. You can click 'Add New Contact'.",
+                "extraInstruction": {"instruction": "highlightAddContact"}
+            }
+
+        elif last_msg in ["yes", "yep", "i see them", "yes they are here"]:
+            return {
+                "intent": intent,
+                "step": {"name": "ask_recipient_name"},
+                "stepIndex": 1.5,
+                "botMessage": "Great. What is the recipient's name?"
+            }
+
+        elif step_name == "ask_recipient_name":
+            recipient_name = messages[-1]["content"].strip()
+            return {
+                "intent": intent,
+                "step": {"name": "await_contact_click"},
+                "stepIndex": 1.6,
+                "botMessage": f"Looking for {recipient_name}... Click the contact if it's highlighted.",
+                "extraInstruction": {
+                    "instruction": "highlightRecipientByName",
+                    "name": recipient_name
+                }
+            }
+
+    return None
 
 @app.post("/chat")
 async def chat(request: Request):
@@ -40,17 +76,16 @@ async def chat(request: Request):
     messages = body.get("messages", [])
     step_index = body.get("stepIndex", 0)
     intent = body.get("intent") or None
-    print(type(intent))
-    if intent == "unknown" or "null":
+    step_name = body.get("stepName")
+
+    if intent in ["unknown", "null", "", None]:
         intent = None
 
-    print("BACK intent: ", intent)
-
+    print("BACK intent:", intent)
     deployment_name = "gpt-4"
 
-    # 1. Intent not yet identified → ask GPT to classify it
+    # 1. Intent identification
     if not intent:
-        print("HERE")
         system_msg = {
             "role": "system",
             "content": (
@@ -66,7 +101,7 @@ async def chat(request: Request):
         )
 
         reply = response.choices[0].message.content.strip()
-        print("BACK reply: ", reply)
+        print("BACK reply:", reply)
 
         if reply in flows:
             step = flows[reply][0]
@@ -84,9 +119,19 @@ async def chat(request: Request):
                 "botMessage": reply
             }
 
-    # 2. Intent is known, we are on a step — respond while staying on that step
+    # 2. Named step override if provided
+    if step_name and intent in flows:
+        for i, s in enumerate(flows[intent]):
+            if s.get("name") == step_name:
+                return {
+                    "intent": intent,
+                    "step": s,
+                    "stepIndex": i,
+                    "botMessage": s["desc"]
+                }
+
+    # 3. Normal step flow
     step_flow = flows.get(intent, [])
-    print("BACK step_flow:", step_flow)
     if step_index < len(step_flow):
         current_step = step_flow[step_index]
     else:
@@ -97,8 +142,6 @@ async def chat(request: Request):
             "botMessage": "You've completed the e-transfer flow. Let me know if you need anything else!"
         }
 
-
-    # Let GPT respond naturally, but instruct it to stay on this step
     contextual_system_msg = {
         "role": "system",
         "content": (
