@@ -64,6 +64,7 @@
     let chatHistory = [];
     let stepIndex = 0;
     let intent = null;
+    let stepName = null;  // ✅ Declare globally
     let lastSelectorSent = null;
   
     function appendMessage(role, text) {
@@ -75,20 +76,11 @@
       messages.scrollTop = messages.scrollHeight;
     }
   
-    function clearHighlights() {
-      // No longer directly clearing — this can be triggered via message if needed
-    }
-  
-    function highlight(step) {
-      if (!step || !step.selector) return;
-  
-      const selector = step.selector;
-      console.log("selector", selector)
+    function highlight(selector) {
+      if (!selector) return;
+      console.log("selector", selector);
       window.parent.postMessage({ selector, instruction: "highlight" }, "*");
-  
       lastSelectorSent = selector;
-      // appendMessage("assistant", "Please click the highlighted button to continue.");
-      // chatHistory.push({ role: "assistant", content: "Please click the highlighted button to continue." });
     }
   
     function logUserAction(text) {
@@ -96,8 +88,8 @@
       chatHistory.push({ role: "user", content: text });
       sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
     }
-
-    async function sendMessage(auto = false, overrideMessage = "", stepName = null) {
+  
+    async function sendMessage(auto = false, overrideMessage = "", overrideStepName = null) {
       const input = document.getElementById("chat-input");
       const message = auto ? overrideMessage : input.value.trim();
       if (!message && !auto) return;
@@ -109,32 +101,43 @@
   
       input.value = "";
   
+      // 🔁 Use overrideStepName if passed in, otherwise use global stepName
+      const currentStepName = overrideStepName || stepName;
+  
       const res = await fetch("/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: chatHistory, stepIndex, intent, stepName })
+        body: JSON.stringify({
+          messages: chatHistory,
+          intent,
+          stepName: currentStepName
+        })
       });
   
       const data = await res.json();
-      const reply = data.botMessage || "I didn't understand that.";
+      const reply = data.botMessage || "I didn't understand that. Please tell me your goal.";
       appendMessage("assistant", reply);
       chatHistory.push({ role: "assistant", content: reply });
+      sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
   
       if (data.intent && data.intent !== "unknown") {
         intent = data.intent;
         sessionStorage.setItem("intent", intent);
       }
   
-      highlight(data.step);
+      if (data.step && data.step.name) {
+        stepName = data.step.name;
+        sessionStorage.setItem("stepName", stepName);
+      }
   
-      sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
-      sessionStorage.setItem("stepIndex", data.stepIndex);
+      highlight(data.selector);
     }
   
     window.addEventListener("DOMContentLoaded", () => {
       chatHistory = JSON.parse(sessionStorage.getItem("chatHistory") || "[]");
       stepIndex = Number(sessionStorage.getItem("stepIndex") || 0);
       intent = sessionStorage.getItem("intent") || null;
+      stepName = sessionStorage.getItem("stepName") || null;
   
       for (const m of chatHistory) appendMessage(m.role, m.content);
   
@@ -144,18 +147,24 @@
       });
   
       const currentPage = window.parent.location.pathname.split("/").pop();
-
+  
       if (intent === "e_transfer") {
         if (currentPage === "etransfer.html") {
-          sendMessage(true, "resuming", "check_transferee");
+          stepName = "check_transferee";
+          sessionStorage.setItem("stepName", stepName);
+          sendMessage(true, "resuming", stepName);
         } else if (currentPage === "send_to_alex.html") {
-          sendMessage(true, "resuming", "enter_amount");
+          stepName = "enter_amount";
+          sessionStorage.setItem("stepName", stepName);
+          sendMessage(true, "resuming", stepName);
         } else if (currentPage === "confirm_transfer.html") {
-          sendMessage(true, "resuming", "confirm_transfer");
+          stepName = "confirm_transfer";
+          sessionStorage.setItem("stepName", stepName);
+          sendMessage(true, "resuming", stepName);
         }
       }
     });
-
+  
     window.addEventListener("message", (event) => {
       const { instruction, text } = event.data;
       if (instruction === "log" && typeof text === "string") {
@@ -165,11 +174,11 @@
   
     window.addEventListener("beforeunload", () => {
       sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
-      sessionStorage.setItem("stepIndex", stepIndex);
+      sessionStorage.setItem("stepName", stepName);
       sessionStorage.setItem("intent", intent);
     });
+  </script>
   
-  </script>  
   
 </body>
 </html>

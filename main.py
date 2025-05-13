@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from openai import AzureOpenAI
 from dotenv import load_dotenv
+import ast
 import os
 
 load_dotenv()
@@ -25,58 +26,57 @@ client = AzureOpenAI(
     azure_endpoint=os.getenv("AZURE_OPENAI_API_BASE")
 )
 
+check_transferee_prompt = """
+You are helping the user transfer money.
+You are currently in the 'check_transferee' step. Your goal is to guide the user through selecting the intended recipient.
+
+Instructions:
+1. Ask the user whether the person they want to transfer to is already listed on this page.
+2. Based on the user's response:
+   - If the user indicates **yes**, ask them for the recipient's name and return a response like this:
+     {
+       "selector": "",
+       "botMessage": "Please click on the recipient’s name if it is shown on the page."
+     }
+
+   - If the user indicates **no**, return:
+     {
+       "selector": "#add-contact-button",
+       "botMessage": "Please click the 'Add New Contact' button to add the recipient."
+     }
+
+Respond only with a valid JSON object in the format shown above.
+"""
+
 flows = {
     "e_transfer": [
         {"name": "go_to_tab", "desc": "Click the 'E-transfer' tab", "selector": "#nav-transfer"},
-        {"name": "check_transferee", "desc": "Is the person you want to transfer to listed on this page? If yes, select them. If not, click 'Add New Contact'.", "selector": ".contact-button"},
-        {"name": "enter_amount", "desc": "Enter the amount and click the 'Send' button", "selector": "#amount, #send-button"},
-        {"name": "confirm_transfer", "desc": "Click the 'Confirm' button to complete the transfer", "selector": "#confirm-button"}
+        {"name": "check_transferee", "desc": "", "prompt": check_transferee_prompt},
+        {"name": "enter_amount", "desc": "Enter amount and click 'Send'", "selector": "#amount, #send-button"},
+        {"name": "confirm_transfer", "desc": "Click 'Confirm'", "selector": "#confirm-button"}
     ]
 }
 
-def handle_step_override(intent: str, step_name: str, messages: list):
-    if intent == "e_transfer" and step_name == "check_transferee":
-        last_msg = messages[-1]["content"].lower().strip()
-
-        if last_msg in ["no", "not here", "nope"]:
-            return {
-                "intent": intent,
-                "step": {"name": "check_transferee"},
-                "stepIndex": 1,
-                "botMessage": "No problem. You can click 'Add New Contact'.",
-                "extraInstruction": {"instruction": "highlightAddContact"}
-            }
-
-        elif last_msg in ["yes", "yep", "i see them", "yes they are here"]:
-            return {
-                "intent": intent,
-                "step": {"name": "ask_recipient_name"},
-                "stepIndex": 1.5,
-                "botMessage": "Great. What is the recipient's name?"
-            }
-
-        elif step_name == "ask_recipient_name":
-            recipient_name = messages[-1]["content"].strip()
-            return {
-                "intent": intent,
-                "step": {"name": "await_contact_click"},
-                "stepIndex": 1.6,
-                "botMessage": f"Looking for {recipient_name}... Click the contact if it's highlighted.",
-                "extraInstruction": {
-                    "instruction": "highlightRecipientByName",
-                    "name": recipient_name
-                }
-            }
-
-    return None
+system_msg = {
+    "role": "system",
+    "content": (
+        "You are a helpful banking assistant. "
+        "Your job is to identify the user's goal (choose from: e_transfer, pay_bill, check_balance). "
+        "Ask questions if unclear, but when certain, reply only with the intent name like 'e_transfer'."
+    )
+}
 
 @app.post("/chat")
 async def chat(request: Request):
+    import json
+
     body = await request.json()
     messages = body.get("messages", [])
     step_index = body.get("stepIndex", 0)
     intent = body.get("intent") or None
     step_name = body.get("stepName")
+    steps = []
+    
 
     if intent in ["unknown", "null", "", None]:
         intent = None
@@ -84,85 +84,108 @@ async def chat(request: Request):
     print("BACK intent:", intent)
     deployment_name = "gpt-4"
 
-    # 1. Intent identification
+    # 1. Intent identification phase
     if not intent:
-        system_msg = {
-            "role": "system",
-            "content": (
-                "You are a helpful banking assistant. "
-                "Your job is to identify the user's goal (choose from: e_transfer, pay_bill, check_balance). "
-                "Ask questions if unclear, but when certain, reply only with the intent name like 'e_transfer'."
-            )
-        }
-
         response = client.chat.completions.create(
             model=deployment_name,
             messages=[system_msg] + messages
         )
 
         reply = response.choices[0].message.content.strip()
-        print("BACK reply:", reply)
+        print("reply:", reply)
 
         if reply in flows:
             step = flows[reply][0]
             return {
                 "intent": reply,
-                "step": step,
+                "selector": step["selector"],
                 "stepIndex": 0,
                 "botMessage": step["desc"]
             }
         else:
             return {
                 "intent": "unknown",
-                "step": {},
+                "selector": "",
                 "stepIndex": 0,
                 "botMessage": reply
             }
 
-    # 2. Named step override if provided
-    if step_name and intent in flows:
-        for i, s in enumerate(flows[intent]):
-            if s.get("name") == step_name:
-                return {
-                    "intent": intent,
-                    "step": s,
-                    "stepIndex": i,
-                    "botMessage": s["desc"]
-                }
+    # 2. Get step and prompt
+    # If stepName is provided, recalculate stepIndex
+    steps = flows.get(intent, [])
 
-    # 3. Normal step flow
-    step_flow = flows.get(intent, [])
-    if step_index < len(step_flow):
-        current_step = step_flow[step_index]
+    print("step_name", step_name)
+    # If stepName is provided, use it to resolve stepIndex
+    if step_name:
+        for i, step in enumerate(steps):
+            if step.get("name") == step_name:
+                step_index = i
+                break
+
+    # Validate stepIndex and set current_step
+    if 0 <= step_index < len(steps):
+        current_step = steps[step_index]
     else:
         return {
             "intent": intent,
-            "step": {},
-            "stepIndex": step_index,
+            "selector": "",
+            "stepName": step_name,
             "botMessage": "You've completed the e-transfer flow. Let me know if you need anything else!"
         }
 
-    contextual_system_msg = {
-        "role": "system",
-        "content": (
-            f"You are helping the user complete the '{intent}' task. "
-            f"The current step is: \"{current_step['desc']}\".\n"
-            f"If the user asks unrelated questions, answer them politely. "
-            f"Always remind them to complete the current step by clicking the correct button.\n"
-            f"Do not move to the next step until the current one is completed."
+    prompt = current_step.get("prompt", None)
+    print("current_step", current_step)
+    print("prompt", prompt)
+
+    # 3. Handle logic within a step
+    if prompt:
+        response = client.chat.completions.create(
+            model=deployment_name,
+            messages=[{"role": "system", "content": prompt}] + messages
         )
-    }
+        
+        reply = response.choices[0].message.content.strip()
+        print("reply", reply)
+        reply = json.loads(reply)
+        print("reply", reply)  # Output: value
+        selector = reply.get("selector", None)
+        botMessage = reply.get("botMessage", "Sorry I don't understand. Can you say again?")
+        return {
+            "intent": intent,
+            "selector": selector,
+            "stepName": step_name,
+            "botMessage": botMessage
+        }
+    
+    # 4. Default contextual prompt (step-only, no substate)
+    default_prompt_template = """
+You are helping the user complete the '{intent}' task.
+
+The current step is: "{step_name}"
+
+Instructions:
+- If the user asks unrelated questions, answer them politely.
+- Always remind them to complete the current step by clicking the correct button.
+- Do not move to the next step until the current one is completed.
+"""
+    prompt_text = default_prompt_template.format(
+        intent=intent,
+        step_name=step_name
+    )
 
     response = client.chat.completions.create(
         model=deployment_name,
-        messages=[contextual_system_msg] + messages
+        messages=[{"role": "system", "content": prompt_text}] + messages
     )
 
-    bot_reply = response.choices[0].message.content.strip()
+    reply = response.choices[0].message.content.strip()
+    print("General reply:", reply)
+
+    selector = current_step.get("selector", None)
 
     return {
         "intent": intent,
-        "step": current_step,
-        "stepIndex": step_index,
-        "botMessage": bot_reply
+        "selector": selector,
+        "stepName": step_name,
+        "botMessage": reply
     }
