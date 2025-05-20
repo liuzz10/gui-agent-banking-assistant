@@ -9,9 +9,9 @@
   <nav>
     <h1>My Online Bank</h1>
     <div class="nav-buttons">
-      <button onclick="window.location.href='index.html'">Account</button>
-      <button onclick="window.location.href='pay_bill.html'">Pay Bill</button>
-      <button class="active-tab" onclick="window.location.href='etransfer.html'">E-transfer</button>
+      <button onclick="window.location.href='index.html'">Accounts</button>
+      <button onclick="window.location.href='pay_bill.html'">Pay Bills</button>
+      <button class="active-tab" onclick="window.location.href='etransfer.html'">e-Transfer</button>
     </div>
   </nav>
 
@@ -23,6 +23,7 @@
     
       <label for="from-account">From Account:</label><br>
       <select id="from-account" style="padding: 10px; width: 220px; margin-top: 10px; border-radius: 6px; border: 1px solid #ccc;">
+        <option value="instruction"> -- Choose an account -- </option>
         <option value="checking">Checking Account</option>
         <option value="savings">Savings Account</option>
       </select><br><br>
@@ -31,7 +32,7 @@
       <input type="number" id="amount" placeholder="Enter amount" style="padding: 10px; width: 200px; margin-top: 10px; border-radius: 6px; border: 1px solid #ccc;"><br><br>
       
       <button id="cancel-button" onclick="window.location.href='etransfer.html'">Cancel</button>
-      <button id="send-button">Continue</button>
+      <button id="send-button" disabled>Continue</button>
     </div>    
   </div>
 
@@ -46,24 +47,35 @@
   "></iframe>
 
   <script>
-    document.getElementById("send-button").addEventListener("click", () => {
-      const amount = document.getElementById("amount").value;
-      const account = document.getElementById("from-account").value;
+    document.addEventListener("DOMContentLoaded", () => {
+      const amountInput = document.getElementById("amount");
+      const sendButton = document.getElementById("send-button");
 
-      if (!amount) {
-        alert("Please enter an amount.");
-        return;
-      }
+      // Enable the button only when amount is a valid number > 0
+      amountInput.addEventListener("input", () => {
+        const amountValue = parseFloat(amountInput.value);
+        sendButton.disabled = isNaN(amountValue) || amountValue <= 0;
+      });
 
-      const chatbotIframe = document.querySelector("iframe");
-      chatbotIframe.contentWindow.postMessage({
-        instruction: "log",
-        text: `✅ You plan to send $${amount} to Alex Chen from your ${account} account.`
-      }, "*");
+      sendButton.addEventListener("click", () => {
+        console.log("clicked");
+        const amount = amountInput.value;
+        const account = document.getElementById("from-account").value;
 
-      window.location.href = `confirm_transfer.html?amount=${amount}&account=${account}`;
+        if (!amount) {
+          alert("Please enter an amount.");
+          return;
+        }
+
+        const chatbotIframe = document.querySelector("iframe");
+        chatbotIframe.contentWindow.postMessage({
+          instruction: "log",
+          text: `✅ You plan to send $${amount} to Alex Chen from your ${account} account.`
+        }, "*");
+
+        window.location.href = `confirm_transfer.html?amount=${amount}&account=${account}`;
+      });
     });
-
 
     window.addEventListener("message", (event) => {
       const { selector, instruction } = event.data;
@@ -73,5 +85,6 @@
       elements.forEach(el => el.classList.add("highlight"));
     });
   </script>
+
 </body>
 </html>

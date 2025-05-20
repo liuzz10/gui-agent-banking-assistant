@@ -26,17 +26,17 @@ client = AzureOpenAI(
     azure_endpoint=os.getenv("AZURE_OPENAI_API_BASE")
 )
 
-check_transferee_prompt = """
+check_transferee_prompt = '''
 You are helping the user transfer money.
 You are currently in the 'check_transferee' step. Your goal is to guide the user through selecting the intended recipient.
 
 Instructions:
 1. Ask the user whether the person they want to transfer to is already listed on this page.
 2. Based on the user's response:
-   - If the user indicates **yes**, ask them for the recipient's name and return a response like this:
+   - If the user indicates **yes**, ask them for the recipient's name. After the user input a name (such as Alex), return a response like this:
      {
-       "selector": "",
-       "botMessage": "Please click on the recipient’s name if it is shown on the page."
+       "selector": "#contact-alex",
+       "botMessage": "Please click on Alex Chen."
      }
 
    - If the user indicates **no**, return:
@@ -46,14 +46,22 @@ Instructions:
      }
 
 Respond only with a valid JSON object in the format shown above.
-"""
+'''
+
+enter_amount_prompt = '''
+The user is on the page to etransfer money to a recipient. Your goal is to guide the user to look for “From Account” to choose which of the accounts they'd like to transfer money from. Then, enter the amount they want to send. Once they've done that, click on “Continue”. Keep your reply short and easy to understand. Do not exceed 4 sentences.
+'''
+
+confirm_transfer_prompt = '''
+The user is on the last step to e-transfer money. Your goal is to guide the user to double check the information and click on 'Confirm' if want to continue, otherwise click 'Cancel' to cancel the transaction.  Keep your reply short and easy to understand. Do not exceed 2 sentences.
+'''
 
 flows = {
     "e_transfer": [
-        {"name": "go_to_tab", "desc": "Click the 'E-transfer' tab", "selector": "#nav-transfer"},
-        {"name": "check_transferee", "desc": "", "prompt": check_transferee_prompt},
-        {"name": "enter_amount", "desc": "Enter amount and click 'Send'", "selector": "#amount, #send-button"},
-        {"name": "confirm_transfer", "desc": "Click 'Confirm'", "selector": "#confirm-button"}
+        {"name": "go_to_tab", "desc": "Clicked the 'E-transfer' tab", "immediate_reply": "Click the 'E-transfer' tab", "selector": "#nav-transfer"},
+        {"name": "check_transferee", "desc": "", "immediate_reply": "", "prompt": check_transferee_prompt},
+        {"name": "enter_amount", "desc": "Entered amount and clicked 'Continue'", "simple_prompt": enter_amount_prompt, "selector": "#from-account, #amount, #send-button"},
+        {"name": "confirm_transfer", "desc": "Clicked 'Confirm'", "immediate_reply": "", "simple_prompt": confirm_transfer_prompt, "selector": "#confirm-button, #cancel-button"}
     ]
 }
 
@@ -100,7 +108,7 @@ async def chat(request: Request):
                 "intent": reply,
                 "selector": step["selector"],
                 "stepIndex": 0,
-                "botMessage": step["desc"]
+                "botMessage": step["immediate_reply"]
             }
         else:
             return {
@@ -145,23 +153,37 @@ async def chat(request: Request):
         )
         
         reply = response.choices[0].message.content.strip()
-        print("reply", reply)
-        reply = json.loads(reply)
-        print("reply", reply)  # Output: value
-        selector = reply.get("selector", None)
-        botMessage = reply.get("botMessage", "Sorry I don't understand. Can you say again?")
-        return {
-            "intent": intent,
-            "selector": selector,
-            "stepName": step_name,
-            "botMessage": botMessage
-        }
+        print("reply (raw):", reply)
+
+        try:
+            reply_dict = json.loads(reply)
+            print("reply (parsed):", reply_dict)
+
+            selector = reply_dict.get("selector", "")
+            botMessage = reply_dict.get("botMessage", "Sorry, I didn’t understand that.")
+            
+            return {
+                "intent": intent,
+                "selector": selector,
+                "stepName": step_name,
+                "botMessage": botMessage
+            }
+
+        except json.JSONDecodeError:
+            print("Failed to parse reply as JSON. Using fallback.")
+            return {
+                "intent": intent,
+                "selector": "",
+                "stepName": step_name,
+                "botMessage": reply
+            }
+
     
     # 4. Default contextual prompt (step-only, no substate)
     default_prompt_template = """
 You are helping the user complete the '{intent}' task.
 
-The current step is: "{step_name}"
+The current step is: "{step_name}", "{simple_prompt}"
 
 Instructions:
 - If the user asks unrelated questions, answer them politely.
@@ -170,7 +192,8 @@ Instructions:
 """
     prompt_text = default_prompt_template.format(
         intent=intent,
-        step_name=step_name
+        step_name=step_name,
+        simple_prompt=current_step["simple_prompt"]
     )
 
     response = client.chat.completions.create(
@@ -179,7 +202,7 @@ Instructions:
     )
 
     reply = response.choices[0].message.content.strip()
-    print("General reply:", reply)
+    print("Simple reply:", reply)
 
     selector = current_step.get("selector", None)
 

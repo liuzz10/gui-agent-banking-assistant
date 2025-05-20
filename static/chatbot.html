@@ -64,7 +64,7 @@
     let chatHistory = [];
     let stepIndex = 0;
     let intent = null;
-    let stepName = null;  // ✅ Declare globally
+    let stepName = null;  // Declare globally
     let lastSelectorSent = null;
   
     function appendMessage(role, text) {
@@ -129,7 +129,8 @@
         stepName = data.step.name;
         sessionStorage.setItem("stepName", stepName);
       }
-  
+      
+      console.log("data.selector", data.selector)
       highlight(data.selector);
     }
   
@@ -167,6 +168,7 @@
   
     window.addEventListener("message", (event) => {
       const { instruction, text } = event.data;
+      console.log(instruction, text)
       if (instruction === "log" && typeof text === "string") {
         logUserAction(text);
       }
