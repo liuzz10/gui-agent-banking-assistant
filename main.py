@@ -26,6 +26,12 @@ client = AzureOpenAI(
     azure_endpoint=os.getenv("AZURE_OPENAI_API_BASE")
 )
 
+identify_intent_prompt = '''
+You are a helpful banking assistant.
+Your job is to identify the user's goal (choose from: e_transfer, pay_bills, check_balance).
+Ask questions if unclear, but when certain, reply only with the intent name like 'e_transfer'.
+'''
+
 check_transferee_prompt = '''
 You are helping the user transfer money.
 You are currently in the 'check_transferee' step. Your goal is to guide the user through selecting the intended recipient.
@@ -65,14 +71,14 @@ flows = {
     ]
 }
 
-system_msg = {
-    "role": "system",
-    "content": (
-        "You are a helpful banking assistant. "
-        "Your job is to identify the user's goal (choose from: e_transfer, pay_bill, check_balance). "
-        "Ask questions if unclear, but when certain, reply only with the intent name like 'e_transfer'."
+deployment_name = "gpt-35-turbo"
+
+def model_call(prompt, messages=[]):
+    response = client.chat.completions.create(
+        model=deployment_name,
+        messages=[{"role": "system", "content": (prompt)}] + messages
     )
-}
+    return response.choices[0].message.content.strip()
 
 @app.post("/chat")
 async def chat(request: Request):
@@ -85,37 +91,29 @@ async def chat(request: Request):
     step_name = body.get("stepName")
     steps = []
     
-
     if intent in ["unknown", "null", "", None]:
         intent = None
 
     print("BACK intent:", intent)
-    deployment_name = "gpt-4"
 
     # 1. Intent identification phase
+    # TODO: Identify intent at any step (not necessarily starting from 0)
     if not intent:
-        response = client.chat.completions.create(
-            model=deployment_name,
-            messages=[system_msg] + messages
-        )
+        res = model_call(identify_intent_prompt, messages)
+        print("INTENT RESPONSE:", res)
 
-        reply = response.choices[0].message.content.strip()
-        print("reply:", reply)
-
-        if reply in flows:
-            step = flows[reply][0]
+        if res in flows:
+            step = flows[res][0]
             return {
-                "intent": reply,
+                "intent": res,
                 "selector": step["selector"],
-                "stepIndex": 0,
                 "botMessage": step["immediate_reply"]
             }
         else:
             return {
                 "intent": "unknown",
                 "selector": "",
-                "stepIndex": 0,
-                "botMessage": reply
+                "botMessage": res
             }
 
     # 2. Get step and prompt
