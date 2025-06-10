@@ -63,6 +63,11 @@ nav .nav-buttons button {
   box-shadow: 0 0 0 rgba(255, 204, 0, 0.7);
 }
 
+.completed {
+  outline: 2px solid #28a745;
+  background-color: #e6f9ec;
+}
+
 @keyframes glow-pulse-yellow {
   0% {
     box-shadow: 0 0 0 rgba(255, 204, 0, 0.7);

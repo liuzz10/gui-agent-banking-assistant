@@ -78,16 +78,20 @@
     window.addEventListener("message", (event) => {
       const { selector, instruction } = event.data;
       if (typeof selector !== "string" || !instruction) return;
+      console.log("Received message from chatbot:", selector, instruction);
 
       const elements = document.querySelectorAll(selector);
-
       if (instruction === "highlight") {
         elements.forEach(el => el.classList.add("highlight"));
       } else if (instruction === "dehighlight") {
-        console.log("dehighlighting", selector);
         elements.forEach(el => el.classList.remove("highlight"));
+      } else if (instruction === "mark-complete") {
+        elements.forEach(el => {
+          el.classList.remove("highlight");
+          el.classList.add("completed");
+        });
       }
-    });
+    })
   </script>
 
 </body>

@@ -82,20 +82,22 @@
     //   window.parent.postMessage({ selector, instruction: "highlight" }, "*");
     // }
 
-    function highlight(selector) {
+    function highlight(selector, lastInstruction = "mark-complete") {
       if (!selector) return;
       console.log("lastSelector and selector", lastSelector, selector);
 
       // Dehighlight the previous selector if it's different
       if (lastSelector && lastSelector !== selector) {
         console.log("dehighlighting in chatbot", lastSelector);
-        window.parent.postMessage({selector: lastSelector, instruction: "dehighlight"}, "*");
+        window.parent.postMessage({selector: lastSelector, instruction: lastInstruction}, "*");
       }
 
+      console.log("[Chatbot] Sending highlight to parent:", selector);
       // Highlight the new selector
       window.parent.postMessage({selector, instruction: "highlight"}, "*");
       lastSelector = selector; // Update the last selector
     }
+    
   
     function logUserAction(text) {
       appendMessage("user", text);

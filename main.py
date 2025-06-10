@@ -45,33 +45,20 @@ Keep responses under 100 characters. Use only one or two sentences max.
 
 CLICK_ETRANSFER_BTN_PROMPT = '''
 You are helping the user transfer money. Your job is to guide the user to click the "e-Transfer" tab on the top right of the website. The button is highlighted in yellow and labeled "e-Transfer".
-Do not exceed 80 charaters in your reply. Do not exceed 1 sentence.
+Do not exceed 80 charaters or 1 sentence in your reply.
 '''
 
 check_transferee_prompt = '''
 You are helping the user transfer money.
-You are currently in the 'check_transferee' step. Your goal is to guide the user through selecting the intended recipient.
-
-Instructions:
-1. Ask the user whether the person they want to transfer to is already listed on this page.
-2. Based on the user's response:
-   - If the user indicates **yes**, ask them for the recipient's name. After the user input a name (such as Alex), return a response like this:
-     {
-       "selector": "#contact-alex",
-       "botMessage": "Please click on Alex Chen."
-     }
-
-   - If the user indicates **no**, return:
-     {
-       "selector": "#add-contact-button",
-       "botMessage": "Please click the 'Add New Contact' button to add the recipient."
-     }
-
-Respond only with a valid JSON object in the format shown above.
+You are currently on the page of selecting a recipient. Your goal is to guide the user through selecting the intended recipient.
+First, ask the user whether the person they want to transfer to is already listed on this page. Based on the user's response:
+If the user indicates **yes**, ask them to click on the recipient.
+If the user indicates **no**, ask them to click the 'Add New Contact' button to add the recipient.
+Do not exceed 120 charaters or 2 sentences in your reply.
 '''
 
-enter_amount_prompt = '''
-The user is on the page to etransfer money to a recipient. Your goal is to guide the user to look for “From Account” to choose which of the accounts they'd like to transfer money from. Then, enter the amount they want to send. Once they've done that, click on “Continue”. Keep your reply short and easy to understand. Do not exceed 4 sentences.
+ENTER_AMOUNT_PROMPT = '''
+The user is on the page to etransfer money to a recipient. Your goal is to guide the user to look for “From Account” to choose which of the accounts they'd like to transfer money from. Then, enter the amount they want to send. Once they've done that, click on “Continue”. They can also click on "Cancel" at any time. Keep your reply short and easy to understand. Do not exceed 2 sentences.
 '''
 
 confirm_transfer_prompt = '''
@@ -98,34 +85,6 @@ Examples:
 - What banking task would you like to complete today?
 """
 
-# e_transfer = OrderedDict({
-#     "index.html": {
-#         "immediate_reply": "Click the 'e-Transfer' tab on the top right of the page",
-#         "selector": "#nav-transfer",
-#         "prompt": click_etransfer_btn_promptCLICK_ETRANSFER_BTN_PROMPT,
-#         "desc": "Clicked the 'E-transfer' tab"
-
-#     },
-#     "etransfer.html": {
-#         "immediate_reply": "Please select the recipient you want to transfer money to.",
-#         "selector": "",
-#         "prompt": check_transferee_prompt,
-#         "desc": "Selected the recipient"
-#     },
-#     "send_to_alex.html": {
-#         "immediate_reply": "Please select the account you want to transfer from, enter the amount, and click 'Continue'.",
-#         "selector": "#from-account, #amount, #send-button",
-#         "prompt": enter_amount_prompt,
-#         "desc": "Entered amount and clicked 'Continue'"
-#     },
-#     "confirm_transfer.html": {
-#         "immediate_reply": "Please double-check the information and click 'Confirm' to complete the transfer, or 'Cancel' if you want to stop.",
-#         "selector": "#confirm-button, #cancel-button",
-#         "prompt": confirm_transfer_prompt,
-#         "desc": "Clicked 'Confirm'"
-#     }
-# })
-
 e_transfer = OrderedDict({
     "index.html": {
         "immediate_reply": "Click the 'e-Transfer' tab on the top right of the page",
@@ -141,20 +100,28 @@ e_transfer = OrderedDict({
         "desc": "Selected the recipient"
     },
     "send_to_alex.html": {
-        "prompt": enter_amount_prompt,  # Optional: keep general one
+        "prompt": ENTER_AMOUNT_PROMPT,  # Optional: keep general one
         "substeps": OrderedDict({
             "choose_account": {
                 "selector": "#from-account",
                 "immediate_reply": "Please choose the account you want to transfer from.",
-                "completion_condition": "account_chosen"  # flag name
+                "completion_condition": "account_chosen",  # flag name
+                "desc": "Selected the account to transfer from"
             },
             "enter_amount": {
-                "selector": "#amount, #send-button",
-                "immediate_reply": "Now enter the amount and click 'Continue'.",
-                "completion_condition": "amount_entered"
-            }
+                "selector": "#amount",
+                "immediate_reply": "Now enter the amount.",
+                "completion_condition": "amount_entered",
+                "desc": "Entered the amount to transfer"
+            },
+            "continue": {
+                "selector": "#send-button",
+                "immediate_reply": "Now click 'Continue'.",
+                "completion_condition": "continue_clicked",
+                "desc": "Clicked 'Continue'"
+            },
         }),
-        "desc": "Entered amount and clicked 'Continue'"
+        "desc": "Filled in information and clicked 'Continue'"
     },
     "confirm_transfer.html": {
         "immediate_reply": "Please double-check the information and click 'Confirm' to complete the transfer, or 'Cancel' if you want to stop.",
@@ -165,7 +132,7 @@ e_transfer = OrderedDict({
 })
 
 flows = {
-    "e_transfer": e_transfer
+    "e_transfer": e_transfer,
 }
 
 deployment_name = "gpt-35-turbo"
@@ -211,7 +178,6 @@ async def chat(request: Request):
 
     print("====Intent and current_page from frontend:", intent, current_page)
 
-    # TODO: The prompt doesn't work all the time on identifying the intent! Sometimes it returns "Great! How can I help you with your e-transfer today?", sometimes it returns "e_transfer" as the intent.
     # 1. Intent Identification
     if not intent:
         # Ask questions until intent is identified
@@ -240,7 +206,7 @@ async def chat(request: Request):
             else:
                 print("====current_page not in flows[res]")
         else:
-            print("====WIP: Intent not found in flows (GPT hallucination!)", intent)
+            print("====WIP: Intent not found in flows (GPT hallucination or not built yet)", intent)
     # When an intent is identified:
     # If a new page just loaded, then send an initial instruction directly
     # If the user is on the page for a while, and has updated a subtask, then send the next substep instruction
@@ -274,7 +240,8 @@ async def chat(request: Request):
             else:
                 print("====WIP: Current page not found in flows for intent:", intent, current_page)
         else:
-            # If intent is already identified && the intial instruction has been sent (user asks other questions after the next action has been highlighted), then continue with the current step
+            # If intent is already identified && at least one instruction has been sent (user asks other questions after the next action has been highlighted), then answer their questions
+            # Also need to track if the user change their intent or not here
             if intent in flows and current_page in flows[intent]:
                 current_step = flows[intent][current_page]
                 print("====current_step", current_step)
