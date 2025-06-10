@@ -1,77 +1,122 @@
 body {
-    font-family: sans-serif;
-    margin: 0;
-    padding: 0;
-    background: #f5f5f5;
-  }
-  
-  nav {
-    background-color: #004080;
-    color: white;
-    padding: 10px 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  
-  nav h1 {
-    margin: 0;
-    font-size: 20px;
-  }
-  
-  nav .nav-buttons {
-    display: flex;
-    gap: 15px;
-  }
-  
-  nav .nav-buttons button {
-    background: white;
-    color: #004080;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 4px;
-    font-weight: bold;
-    cursor: pointer;
-  }
-  
-  .content {
-    padding: 30px;
-  }
-  
-  .account-box {
-    background: white;
-    border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 20px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-  }
-  
-  .account-box h2 {
-    margin-top: 0;
-  }
-  
-  .balance {
-    font-size: 1.5em;
-    color: green;
-  }
-  
-  /* 🔆 Animated Yellow Highlight */
-  .highlight {
-    border: 3px solid #ffcc00 !important;
-    border-radius: 6px;
-    animation: glow-pulse-yellow 1.2s infinite;
+  font-family: sans-serif;
+  margin: 0;
+  padding: 0;
+  background: #f5f5f5;
+}
+
+nav {
+  background-color: #004080;
+  color: white;
+  padding: 10px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+nav h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+nav .nav-buttons {
+  display: flex;
+  gap: 15px;
+}
+
+nav .nav-buttons button {
+  background: white;
+  color: #004080;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.content {
+  padding: 30px;
+}
+
+.account-box {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.account-box h2 {
+  margin-top: 0;
+}
+
+.balance {
+  font-size: 1.5em;
+  color: green;
+}
+
+/* 🔆 Animated Yellow Highlight */
+.highlight {
+  border: 3px solid #ffcc00 !important;
+  border-radius: 6px;
+  animation: glow-pulse-yellow 1.2s infinite;
+  box-shadow: 0 0 0 rgba(255, 204, 0, 0.7);
+}
+
+@keyframes glow-pulse-yellow {
+  0% {
     box-shadow: 0 0 0 rgba(255, 204, 0, 0.7);
   }
-  
-  @keyframes glow-pulse-yellow {
-    0% {
-      box-shadow: 0 0 0 rgba(255, 204, 0, 0.7);
-    }
-    50% {
-      box-shadow: 0 0 12px 4px rgba(255, 204, 0, 0.9);
-    }
-    100% {
-      box-shadow: 0 0 0 rgba(255, 204, 0, 0.7);
-    }
+  50% {
+    box-shadow: 0 0 12px 4px rgba(255, 204, 0, 0.9);
   }
-  
+  100% {
+    box-shadow: 0 0 0 rgba(255, 204, 0, 0.7);
+  }
+}
+
+.payee-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.payee-list .contact-button {
+  width: 300px;
+}
+
+/* Base button style */
+.button {
+  background: #e0e0e0;
+  color: #333;
+  border: none;
+  padding: 10px 20px;
+  font-weight: bold;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.button:hover {
+  background: #d5d5d5;
+}
+
+/* Primary button modifier */
+.button-primary {
+  background: #004080;
+  color: white;
+}
+
+.button-primary:hover {
+  background: #003366;
+}
+
+/* Disabled state for all buttons */
+.button:disabled,
+.button[disabled] {
+  background: #cccccc;
+  color: #888888;
+  cursor: not-allowed;
+  box-shadow: none;
+  opacity: 0.7;
+}

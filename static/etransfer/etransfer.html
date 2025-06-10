@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <title>Online Banking - e-Transfer</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
   <nav>
     <h1>My Online Bank</h1>
     <div class="nav-buttons">
-      <button id="nav-account" onclick="window.location.href='index.html'">Accounts</button>
-      <button id="nav-paybill" onclick="window.location.href='pay_bill.html'">Pay Bills</button>
-      <button id="nav-transfer" onclick="window.location.href='etransfer.html'">e-Transfer</button>
+      <button onclick="window.location.href='../index.html'">Accounts</button>
+      <button onclick="window.location.href='../pay_bill/pay_bill.html'">Pay Bills</button>
+      <button class="active-tab" onclick="window.location.href='etransfer.html'">e-Transfer</button>
     </div>
   </nav>
 
@@ -19,17 +19,17 @@
     <h2>e-Transfer</h2>
 
     <div class="payee-box">
-      <button class="contact-button" id="add-contact-button">+ Add New Contact</button>
+      <button class="button contact-button" id="add-contact-button">+ Add New Contact</button>
     
       <h3>Saved Contacts</h3>
       <div class="payee-list">
-        <button class="contact-button" id="contact-alex" onclick="window.location.href='send_to_alex.html'">Alex Chen — alex.chen@emailaddress.com</button>
-        <button class="contact-button" id="contact-sophia">Sophia Smith — sophia.smith@emailaddress.com</button>
-        <button class="contact-button" id="contact-david">David Kim — david.kim@emailaddress.com</button>
+        <button class="button contact-button" id="contact-alex" onclick="window.location.href='send_to_alex.html'">Alex Chen (alex.chen@emailaddress.com)</button>
+        <button class="button contact-button" id="contact-sophia">Sophia Smith (sophia.smith@emailaddress.com)</button>
+        <button class="button contact-button" id="contact-david">David Kim (david.kim@emailaddress.com)</button>
       </div>
     </div>    
 
-  <iframe src="chatbot.html" style="
+  <iframe src="../chatbot.html" style="
     position: fixed;
     bottom: 20px;
     right: 20px;

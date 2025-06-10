@@ -3,31 +3,33 @@
 <head>
   <meta charset="UTF-8">
   <title>Confirm Transfer - Alex Chen</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
   <nav>
     <h1>My Online Bank</h1>
     <div class="nav-buttons">
-      <button onclick="window.location.href='index.html'">Accounts</button>
-      <button onclick="window.location.href='pay_bill.html'">Pay Bills</button>
+      <button onclick="window.location.href='../index.html'">Accounts</button>
+      <button onclick="window.location.href='../pay_bill/pay_bill.html'">Pay Bills</button>
       <button class="active-tab" onclick="window.location.href='etransfer.html'">e-Transfer</button>
     </div>
   </nav>
 
   <div class="content">
     <div class="payee-box">
-      <h2>Confirm Transfer to Alex Chen</h2>
-      <p>Name: Alex Chen</p>
-      <p>Etransfer account: alex.chen@email.com</p>
-      <p id="account-display" style="font-size: 18px;"></p>
-      <p id="amount-display" style="font-size: 18px;"></p>
-      <button id="cancel-button" onclick="window.location.href='etransfer.html'">Cancel</button>
-      <button id="confirm-button">Confirm</button>
+      <h2>Confirm e-Transfer</h2>
+      <div class="account-box">
+        <p>Name: Alex Chen</p>
+        <p>Etransfer account: alex.chen@emailaddress.com (autodeposit enabled)</p>
+        <p id="account-display"></p>
+        <p id="amount-display"></p>
+        <button id="cancel-button" class="button" onclick="window.location.href='etransfer.html'">Cancel</button>
+        <button id="confirm-button" class="button button-primary">Confirm</button>
+      </div>
     </div>
   </div>
 
-  <iframe src="chatbot.html" style="
+  <iframe src="../chatbot.html" style="
     position: fixed;
     bottom: 20px;
     right: 20px;
@@ -49,10 +51,10 @@
       const chatbotIframe = document.querySelector("iframe");
       chatbotIframe.contentWindow.postMessage({
         instruction: "log",
-        text: `✅ Transfer of $${amount} from your ${account} account to Alex Chen confirmed.`
+        text: `🎉 Good job! You successfully transfered $${amount} from your ${account} account to Alex Chen.`
       }, "*");
 
-      window.location.href = "transfer_success.html";
+      window.location.href = `success.html?amount=${amount}&account=${account}`;
     });
 
     window.addEventListener("message", (event) => {

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Add New Payee</title>
+  <link rel="stylesheet" href="../styles.css" />
+</head>
+<body>
+  <nav>
+    <h1>My Online Bank</h1>
+    <div class="nav-buttons">
+      <button onclick="window.location.href='../index.html'">Accounts</button>
+      <button onclick="window.location.href='pay_bill.html'">Pay Bills</button>
+      <button onclick="window.location.href='../etransfer/etransfer.html'">e-Transfer</button>
+    </div>
+  </nav>
+
+  <div class="content">
+    <h2>Add New Payee</h2>
+
+    <div class="account-box">
+      <label for="payee-name"><strong>Payee Name</strong></label><br />
+      <input id="payee-name" type="text" style="width: 100%; padding: 10px; margin: 10px 0 20px; border-radius: 4px; border: 1px solid #ccc;" placeholder="e.g. BC Hydro" />
+
+      <label for="account-number"><strong>Payee Account Number</strong></label><br />
+      <input id="account-number" type="text" maxlength="11" style="width: 100%; padding: 10px; margin: 10px 0 5px; border-radius: 4px; border: 1px solid #ccc;" placeholder="e.g. 12345678901" />
+      <p style="color: #666; font-size: 0.9em; margin-bottom: 20px;">Your account number will be 11 numbers long.</p>
+
+      <div>
+        <button class="button" onclick="window.location.href='pay_bill.html'">Cancel</button>
+        <button id="add-payee-btn" class="button button-primary" onclick="handleAddPayee()" disabled>Add a Payee</button>
+      </div>
+    </div>
+  </div>
+
+  <iframe src="../chatbot.html" style="
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 300px;
+    height: 400px;
+    border: none;
+    z-index: 9999;
+  "></iframe>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const nameInput = document.getElementById('payee-name');
+    const acctInput = document.getElementById('account-number');
+    const addBtn = document.getElementById('add-payee-btn');
+
+    function validateInputs() {
+      const name = nameInput.value.trim();
+      const acct = acctInput.value.trim();
+      const valid = name.length > 0 && /^\d{11}$/.test(acct);
+      addBtn.disabled = !valid;
+    }
+
+    nameInput.addEventListener('input', validateInputs);
+    acctInput.addEventListener('input', validateInputs);
+
+    window.handleAddPayee = function () {
+      const name = nameInput.value.trim();
+      const acct = acctInput.value.trim();
+
+      if (!name || acct.length !== 11 || !/^\d{11}$/.test(acct)) {
+        alert("Please enter a valid payee name and an 11-digit account number.");
+        return;
+      }
+
+    //   alert(`Payee "${name}" added successfully.`);
+    //   window.location.href = "pay_bill.html";
+    const query = new URLSearchParams({ name, account: acct }).toString();
+    window.location.href = `confirm_payee.html?${query}`;
+        };
+    });
+</script>
+
+</body>
+</html>
