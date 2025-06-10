@@ -62,11 +62,11 @@
 
   <script>
     let chatHistory = [];
-    let stepIndex = 0;
+    // let stepIndex = 0;
     let intent = null;
-    let stepName = null;  // Declare globally
-    let lastSelectorSent = null;
-  
+    let lastSelector = null;
+    let botMessage = null;
+
     function appendMessage(role, text) {
       const messages = document.getElementById("messages");
       const div = document.createElement("div");
@@ -76,11 +76,25 @@
       messages.scrollTop = messages.scrollHeight;
     }
   
+    // function highlight(selector) {
+    //   if (!selector) return;
+    //   console.log("selector highlighted", selector);
+    //   window.parent.postMessage({ selector, instruction: "highlight" }, "*");
+    // }
+
     function highlight(selector) {
       if (!selector) return;
-      console.log("selector", selector);
-      window.parent.postMessage({ selector, instruction: "highlight" }, "*");
-      lastSelectorSent = selector;
+      console.log("lastSelector and selector", lastSelector, selector);
+
+      // Dehighlight the previous selector if it's different
+      if (lastSelector && lastSelector !== selector) {
+        console.log("dehighlighting in chatbot", lastSelector);
+        window.parent.postMessage({selector: lastSelector, instruction: "dehighlight"}, "*");
+      }
+
+      // Highlight the new selector
+      window.parent.postMessage({selector, instruction: "highlight"}, "*");
+      lastSelector = selector; // Update the last selector
     }
   
     function logUserAction(text) {
@@ -88,95 +102,138 @@
       chatHistory.push({ role: "user", content: text });
       sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
     }
+
+    function updateSubstepFlagsForTransferSomeone() {
+      const substep_flags = {};
+
+      try {
+        const parentDoc = window.parent.document;
+        const account = parentDoc.querySelector("#from-account");
+        const amount = parentDoc.querySelector("#amount");
+
+        if (account && account.value !== "instruction") {
+          substep_flags.account_chosen = true;
+        }
+
+        if (amount && parseFloat(amount.value) > 0) {
+          substep_flags.amount_entered = true;
+        }
+      } catch (e) {
+        console.warn("Unable to access parent form fields:", e);
+      }
+
+      return substep_flags;
+    }
+
   
-    async function sendMessage(auto = false, overrideMessage = "", overrideStepName = null) {
+    // sendMessage() likely fires when: 
+    // 1) The user types a message (e.g., "what's next?") 
+    // 2) the page auto-resumes on load (newPageLoaded=True)
+    async function sendMessage(newPageLoaded = false, substepUpdated = false) {
+      console.log("sendMessage called", { newPageLoaded});
       const input = document.getElementById("chat-input");
-      const message = auto ? overrideMessage : input.value.trim();
-      if (!message && !auto) return;
+      const message = newPageLoaded ? "resuming" : input.value.trim(); // Get user input or use overrideMessage if auto is true.
+      if (!message && !newPageLoaded) return; // Don't send empty messages unless the page just loaded.
+      const currentPage = window.parent.location.pathname.split("/").pop();
+      
+      let substep_flags = {};
+      if (currentPage === "send_to_alex.html") {
+        substep_flags = updateSubstepFlagsForTransferSomeone();
+      }
   
-      if (!auto) {
+      // Append the message to the chat history and display it
+      if (!newPageLoaded) {
         appendMessage("user", message);
         chatHistory.push({ role: "user", content: message });
       }
-  
+
       input.value = "";
-  
-      // 🔁 Use overrideStepName if passed in, otherwise use global stepName
-      const currentStepName = overrideStepName || stepName;
   
       const res = await fetch("/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: chatHistory,
+          newPageLoaded,
+          substepUpdated,
           intent,
-          stepName: currentStepName
+          currentPage,
+          substep_flags  // ✅ Send subtask progress
         })
       });
   
       const data = await res.json();
-      const reply = data.botMessage || "I didn't understand that. Please tell me your goal.";
-      appendMessage("assistant", reply);
-      chatHistory.push({ role: "assistant", content: reply });
+      console.log("data from backend", data)
+      console.log("flags", data.substep_flags);
+
+      intent = data.intent
+      selector = data.selector || null;
+      botMessage = data.botMessage || "Hmmm not sure if I understand. Please tell me your goal.";
+      
+      appendMessage("assistant", botMessage);
+      chatHistory.push({ role: "assistant", content: botMessage });
       sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
   
-      if (data.intent && data.intent !== "unknown") {
-        intent = data.intent;
+      if (intent && intent !== "unknown") {
         sessionStorage.setItem("intent", intent);
       }
-  
-      if (data.step && data.step.name) {
-        stepName = data.step.name;
-        sessionStorage.setItem("stepName", stepName);
-      }
       
-      console.log("data.selector", data.selector)
-      highlight(data.selector);
+      if (selector) {
+        sessionStorage.setItem("selector", selector);
+        highlight(selector);
+      }
     }
   
+    // runs only once when chatbot.html is first rendered in the browser (i.e., when the iframe is inserted into the DOM and loads the chatbot page).
     window.addEventListener("DOMContentLoaded", () => {
+      // Load chat history, intent
+      console.log("DOMContentLoaded");  // 🔍 baseline check
       chatHistory = JSON.parse(sessionStorage.getItem("chatHistory") || "[]");
-      stepIndex = Number(sessionStorage.getItem("stepIndex") || 0);
       intent = sessionStorage.getItem("intent") || null;
-      stepName = sessionStorage.getItem("stepName") || null;
-  
-      for (const m of chatHistory) appendMessage(m.role, m.content);
-  
+
+      // Render chatbox and history
+      for (const m of chatHistory) appendMessage(m.role, m.content); // Re-render chat history
       const input = document.getElementById("chat-input");
       input.addEventListener("keydown", (e) => {
         if (e.key === "Enter") sendMessage();
       });
-  
-      const currentPage = window.parent.location.pathname.split("/").pop();
-  
-      if (intent === "e_transfer") {
-        if (currentPage === "etransfer.html") {
-          stepName = "check_transferee";
-          sessionStorage.setItem("stepName", stepName);
-          sendMessage(true, "resuming", stepName);
-        } else if (currentPage === "send_to_alex.html") {
-          stepName = "enter_amount";
-          sessionStorage.setItem("stepName", stepName);
-          sendMessage(true, "resuming", stepName);
-        } else if (currentPage === "confirm_transfer.html") {
-          stepName = "confirm_transfer";
-          sessionStorage.setItem("stepName", stepName);
-          sendMessage(true, "resuming", stepName);
-        }
+
+      // Automatically send a message: if there's no intent, asking for intent. If there's, resuming the conversation.
+      if (!intent) {
+        appendMessage("assistant", "Hi! I'm Grace, your banking assistant. How can I help you today?");
+      } else {
+        // Figure out the step based on intent + page
+        // This logic is only run when the chatbot is first loaded, not on every message sent.
+        // This is to ensure that the chatbot can resume the conversation from the correct step.
+        console.log("calling sendMessage for resuming")
+        sendMessage(newPageLoaded = true);
+      }
+
+      if (window.parent.location.pathname.endsWith("send_to_alex.html")) {
+        const parentDoc = window.parent.document;
+        console.log("parentDoc", parentDoc);
+
+        parentDoc.querySelector("#from-account")?.addEventListener("change", () => {
+          sendMessage(substepUpdated = true);
+        });
+
+        parentDoc.querySelector("#amount")?.addEventListener("input", () => {
+          sendMessage(substepUpdated = true);
+        });
       }
     });
   
+    // This listens for messages from the parent window (the main app) to log user actions.
     window.addEventListener("message", (event) => {
       const { instruction, text } = event.data;
-      console.log(instruction, text)
       if (instruction === "log" && typeof text === "string") {
         logUserAction(text);
       }
     });
   
+    // This saves the chat history, step name, and intent to sessionStorage before the page is unloaded.
     window.addEventListener("beforeunload", () => {
       sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
-      sessionStorage.setItem("stepName", stepName);
       sessionStorage.setItem("intent", intent);
     });
   </script>
