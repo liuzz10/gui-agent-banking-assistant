@@ -74,6 +74,11 @@
       div.innerText = text;
       messages.appendChild(div);
       messages.scrollTop = messages.scrollHeight;
+
+      // Speak if the message is from assistant
+      if (role === "assistant") {
+        speak(text);
+      }
     }
   
     // function highlight(selector) {
@@ -125,6 +130,27 @@
       }
 
       return substep_flags;
+    }
+
+    async function speak(text) {
+      try {
+        const response = await fetch("/speak", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ text })
+        });
+
+        const result = await response.json();
+        if (result.status === "success") {
+          console.log("Speech played:", result.text);
+        } else {
+          console.error("TTS Error:", result.reason);
+        }
+      } catch (error) {
+        console.error("Failed to fetch /speak:", error);
+      }
     }
 
   

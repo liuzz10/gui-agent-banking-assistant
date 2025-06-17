@@ -4,11 +4,12 @@ from fastapi.staticfiles import StaticFiles
 from openai import AzureOpenAI
 from dotenv import load_dotenv
 from collections import OrderedDict
+import azure.cognitiveservices.speech as speechsdk
 import ast
 import os
 import json
 
-load_dotenv()
+load_dotenv(override=True)
 
 app = FastAPI()
 
@@ -22,10 +23,16 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+model_name = "gpt-35-turbo"
+deployment_name = "gpt-35-turbo"
+api_version = "2024-12-01-preview"
+endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+subscription_key = os.getenv("AZURE_OPENAI_API_KEY", "")
+
 client = AzureOpenAI(
-    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-    api_version="2023-12-01-preview",
-    azure_endpoint=os.getenv("AZURE_OPENAI_API_BASE")
+    api_version=api_version,
+    azure_endpoint=endpoint,
+    api_key=subscription_key,
 )
 
 identify_intent_prompt = '''
@@ -135,8 +142,6 @@ flows = {
     "e_transfer": e_transfer,
 }
 
-deployment_name = "gpt-35-turbo"
-
 # Utility function to merge consecutive messages with the same role. GPT expects alternating roles.
 def merge_consecutive_messages(messages):
     if not messages:
@@ -161,6 +166,32 @@ def api_call(prompt, messages=[]):
     )
     print("API response:", response.choices[0].message.content.strip())
     return response.choices[0].message.content.strip()
+
+
+@app.post("/speak")
+async def speak_text(request: Request):
+    data = await request.json()
+    text = data.get("text", "")
+
+    # Configure Azure TTS
+    speech_config = speechsdk.SpeechConfig(subscription=os.getenv("AZURE_SPEECH_KEY"), region="westus" )
+    speech_config.speech_synthesis_voice_name = "en-US-FableTurboMultilingualNeural"
+    
+    # Output to audio stream
+    audio_config = speechsdk.audio.AudioOutputConfig(use_default_speaker=True)
+    speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
+
+    # Synthesize speech
+    speech_synthesis_result = speech_synthesizer.speak_text_async(text).get()
+    if speech_synthesis_result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+        print("Speech synthesized for text [{}]".format(text))
+    elif speech_synthesis_result.reason == speechsdk.ResultReason.Canceled:
+        cancellation_details = speech_synthesis_result.cancellation_details
+        print("Speech synthesis canceled: {}".format(cancellation_details.reason))
+        if cancellation_details.reason == speechsdk.CancellationReason.Error:
+            if cancellation_details.error_details:
+                print("Error details: {}".format(cancellation_details.error_details))
+                print("Did you set the speech resource key and endpoint values?")
 
 @app.post("/chat")
 async def chat(request: Request):
@@ -207,9 +238,9 @@ async def chat(request: Request):
                 print("====current_page not in flows[res]")
         else:
             print("====WIP: Intent not found in flows (GPT hallucination or not built yet)", intent)
-    # When an intent is identified:
-    # If a new page just loaded, then send an initial instruction directly
-    # If the user is on the page for a while, and has updated a subtask, then send the next substep instruction
+    # When an intent is identified, there are two situations:
+    # Intent is identified && a new page just loaded, so no instruction has been sent, then send an initial instruction directly
+    # Intent is identified && the user has updated a subtask but didn't send messages to the chatbot, then send the next substep instruction
     else:
         if new_page_loaded or subtask_updated:
             if intent in flows and current_page in flows[intent]:
@@ -240,7 +271,7 @@ async def chat(request: Request):
             else:
                 print("====WIP: Current page not found in flows for intent:", intent, current_page)
         else:
-            # If intent is already identified && at least one instruction has been sent (user asks other questions after the next action has been highlighted), then answer their questions
+            # Intent is identified && at least one instruction has been sent (user asks other questions after the next action has been highlighted), then answer their questions
             # Also need to track if the user change their intent or not here
             if intent in flows and current_page in flows[intent]:
                 current_step = flows[intent][current_page]
@@ -252,86 +283,22 @@ async def chat(request: Request):
     
 
 
+### Another endpoint to add payees
 
-    # 2. Get step and prompt    
-    # # Validate stepIndex and set current_step
-    # if 0 <= step_index < len(steps):
-    #     current_step = steps[step_index]
-    # else:
-    #     return {
-    #         "intent": intent,
-    #         "selector": "",
-    #         "botMessage": "You've completed the e-transfer flow. Let me know if you need anything else!"
-    #     }
+from pydantic import BaseModel
 
-    # prompt = current_step.get("prompt", None)
-    # print("current_step", current_step)
-    # print("prompt", prompt)
+payees = {}  # key: user_id or session_id, value: list of payees
 
-    # # 3. Handle logic within a step
-    # if prompt:
-    #     response = client.chat.completions.create(
-    #         model=deployment_name,
-    #         messages=[{"role": "system", "content": prompt}] + messages
-    #     )
-        
-    #     reply = response.choices[0].message.content.strip()
-    #     print("reply (raw):", reply)
+class Payee(BaseModel):
+    name: str
+    account: str
+    user_id: str  # or session_id
 
-    #     try:
-    #         reply_dict = json.loads(reply)
-    #         print("reply (parsed):", reply_dict)
-
-    #         selector = reply_dict.get("selector", "")
-    #         botMessage = reply_dict.get("botMessage", "Sorry, I didn’t understand that.")
-            
-    #         return {
-    #             "intent": intent,
-    #             "selector": selector,
-    #             # "stepName": step_name,
-    #             "botMessage": botMessage
-    #         }
-
-    #     except json.JSONDecodeError:
-    #         print("Failed to parse reply as JSON. Using fallback.")
-    #         return {
-    #             "intent": intent,
-    #             "selector": "",
-    #             # "stepName": step_name,
-    #             "botMessage": reply
-    #         }
-
-    
-#     # 4. Default contextual prompt (step-only, no substate)
-#     default_prompt_template = """
-# You are helping the user complete the '{intent}' task.
-
-# The current step is: "{step_name}", "{prompt}"
-
-# Instructions:
-# - If the user asks unrelated questions, answer them politely.
-# - Always remind them to complete the current step by clicking the correct button.
-# - Do not move to the next step until the current one is completed.
-# """
-#     prompt_text = default_prompt_template.format(
-#         intent=intent,
-#         # step_name=step_name,
-#         prompt=current_step["prompt"]
-#     )
-
-#     response = client.chat.completions.create(
-#         model=deployment_name,
-#         messages=[{"role": "system", "content": prompt_text}] + messages
-#     )
-
-#     reply = response.choices[0].message.content.strip()
-#     print("Simple reply:", reply)
-
-#     selector = current_step.get("selector", None)
-
-#     return {
-#         "intent": intent,
-#         "selector": selector,
-#         # "stepName": step_name,
-#         "botMessage": reply
-#     }
+@app.post("/api/add_payee")
+async def add_payee(payee: Payee):
+    user_payees = payees.setdefault(payee.user_id, [])
+    user_payees.append({
+        "name": payee.name,
+        "account": payee.account
+    })
+    return {"status": "success", "payees": user_payees}
