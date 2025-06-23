@@ -51,8 +51,7 @@ Keep responses under 100 characters. Use only one or two sentences max.
 '''
 
 CLICK_ETRANSFER_BTN_PROMPT = '''
-You are helping the user transfer money. Your job is to guide the user to click the "e-Transfer" tab on the top right of the website. The button is highlighted in yellow and labeled "e-Transfer".
-Do not exceed 80 charaters or 1 sentence in your reply.
+You are helping the user transfer money. Your job is to guide the user to click the "e-Transfer" tab on the top right of the website. The button is highlighted in yellow and labeled "e-Transfer". If the user asks questions about the button (location, color, label, or other details), you should answer clearly. Do not exceed 80 characters or 1 sentence in your reply.
 '''
 
 check_transferee_prompt = '''
@@ -134,6 +133,12 @@ e_transfer = OrderedDict({
         "selector": "#confirm-button, #cancel-button",
         "prompt": confirm_transfer_prompt,
         "desc": "Clicked 'Confirm'"
+    },
+    "success.html": {
+        "immediate_reply": "Anything else I can help you with?",
+        "selector": "",
+        "prompt": "The user has successfully completed the transfer. Ask if they have more questions or click 'Home' to return to the homepage. Do not exceed 50 characters.",
+        "desc": ""
     }
 })
 
@@ -175,6 +180,8 @@ async def speak_text(request: Request):
     # Configure Azure TTS
     speech_config = speechsdk.SpeechConfig(subscription=os.getenv("AZURE_SPEECH_KEY"), region="westus" )
     speech_config.speech_synthesis_voice_name = "en-US-FableTurboMultilingualNeural"
+    speech_config.speech_synthesis_language = "en-CA"  # Force Canadian English accent
+
     
     # Output to audio stream
     audio_config = speechsdk.audio.AudioOutputConfig(use_default_speaker=True)

@@ -119,12 +119,43 @@
   </div>
   <script>
     let chatHistory = [];
-    // let stepIndex = 0;
     let intent = null;
     let lastSelector = null;
     let botMessage = null;
+    const currentPage = window.parent.location.pathname.split("/").pop();
 
-    function appendMessage(role, text) {
+    function getSummary() {
+      console.log("getSummary called for page:", currentPage);
+
+      const patterns = {
+        "confirm_transfer.html": { match: "You plan to send", emoji: /^✅\s*/ },
+        "success.html": { match: "You successfully transfered", emoji: /^🎉\s*/ }
+      };
+
+      const pattern = patterns[currentPage];
+      if (!pattern) {
+        console.log("No pattern defined for this page.");
+        return "";
+      }
+
+      console.log("Using pattern:", pattern);
+
+      // Look for the last user message that matches
+      for (let i = chatHistory.length - 1; i >= 0; i--) {
+        const m = chatHistory[i];
+        console.log("Checking message:", m);
+        if (m.role === "user" && m.content.includes(pattern.match)) {
+          const cleanedText = m.content.replace(pattern.emoji, '');
+          console.log("Found matching message:", cleanedText);
+          return cleanedText;
+        }
+      }
+
+      console.log("No matching message found.");
+      return "";
+    }
+
+    function appendMessage(role, text, suppressTTS = false) {
       const messages = document.getElementById("messages");
       const div = document.createElement("div");
       div.className = "message " + role;
@@ -133,7 +164,22 @@
       messages.scrollTop = messages.scrollHeight;
 
       // Speak if the message is from assistant and on the listening mode
-      if (role === "assistant" && listening) {
+      if (role === "assistant" && listening && !suppressTTS) {
+        if (currentPage === "confirm_transfer.html") {
+          console.log("Confirm transfer page detected, checking for summary");
+          const userLog = getSummary();
+          if (userLog) {
+            speak(userLog);
+          }
+        }
+
+        if (currentPage === "success.html") {
+          const userLog = getSummary();
+          if (userLog) {
+            speak(userLog);
+          }
+        }
+
         speak(text);
       }
     }
@@ -210,6 +256,43 @@
       }
     }
 
+    // TTS function using Web Speech API
+    // function speak(text) {
+    //   if (!('speechSynthesis' in window)) {
+    //     console.warn("This browser does not support speech synthesis.");
+    //     return;
+    //   }
+
+    //   const utterance = new SpeechSynthesisUtterance(text);
+    //   utterance.lang = 'en-US';
+
+    //   // Pick neutral voice
+    //   const voices = speechSynthesis.getVoices();
+    //   const neutralVoice = voices.find(v =>
+    //     v.name.includes("Google US English")
+    //   );
+    //   if (neutralVoice) {
+    //     utterance.voice = neutralVoice;
+    //     console.log("Using voice:", neutralVoice.name);
+    //   }
+    //   // Stop recognition while speaking
+    //   utterance.onstart = function() {
+    //     if (listening && recognition) {
+    //       console.log("Pausing recognition during TTS");
+    //       recognition.stop();
+    //     }
+    //   };
+    //   // Resume recognition after speaking
+    //   utterance.onend = function() {
+    //     if (listening && recognition) {
+    //       console.log("Resuming recognition after TTS");
+    //       recognition.start();
+    //     }
+    //   };
+    //   // Speak
+    //   speechSynthesis.speak(utterance);
+    // }
+
   
     // sendMessage() fires when: 
     // 1) The user types a message (e.g., "what's next?") 
@@ -219,7 +302,6 @@
       const input = document.getElementById("chat-input");
       const message = newPageLoaded ? "resuming" : (overrideTranscript ? overrideTranscript : input.value.trim()); // Get user input or use overrideMessage if auto is true.
       if (!message && !newPageLoaded) return; // Don't send empty messages unless the page just loaded.
-      const currentPage = window.parent.location.pathname.split("/").pop();
       
       let substep_flags = {};
       if (currentPage === "send_to_alex.html") {
@@ -249,7 +331,7 @@
   
       const data = await res.json();
       console.log("data from backend", data)
-      console.log("flags", data.substep_flags);
+      // console.log("flags", data.substep_flags);
 
       intent = data.intent
       selector = data.selector || null;
@@ -290,7 +372,7 @@
       }
 
       // Restore chatbox and history
-      for (const m of chatHistory) appendMessage(m.role, m.content); // Re-render chat history
+      for (const m of chatHistory) appendMessage(m.role, m.content, suppressTTS=true); // Re-render chat history
       const input = document.getElementById("chat-input");
       input.addEventListener("keydown", (e) => {
         if (e.key === "Enter") sendMessage();
@@ -359,6 +441,12 @@
 
       recognition.onerror = function(event) {
         console.error("Speech recognition error:", event.error);
+
+        if (event.error === "no-speech") {
+          // No alert — user was silent, that's OK
+          return;
+        }
+
         alert("Speech recognition error: " + event.error);
       };
 
