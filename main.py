@@ -94,11 +94,10 @@ Examples:
 
 e_transfer = OrderedDict({
     "index.html": {
-        "immediate_reply": "Click the 'e-Transfer' tab on the top right of the page",
+        "immediate_reply": "Click the 'e-Transfer' button on the top right of the page",
         "selector": "#nav-transfer",
         "prompt": CLICK_ETRANSFER_BTN_PROMPT,
         "desc": "Clicked the 'E-transfer' tab"
-
     },
     "etransfer.html": {
         "immediate_reply": "Please select the recipient you want to transfer money to.",
@@ -182,9 +181,10 @@ async def speak_text(request: Request):
     speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
 
     # Synthesize speech
-    speech_synthesis_result = speech_synthesizer.speak_text_async(text).get()
+    speech_synthesis_result = speech_synthesizer.speak_text_async(text).get()   # The speech happens entirely inside this line. It triggers Azure TTS → it sends audio → plays on speaker.
     if speech_synthesis_result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
         print("Speech synthesized for text [{}]".format(text))
+        return { "status": "success", "text": text }
     elif speech_synthesis_result.reason == speechsdk.ResultReason.Canceled:
         cancellation_details = speech_synthesis_result.cancellation_details
         print("Speech synthesis canceled: {}".format(cancellation_details.reason))
@@ -192,6 +192,7 @@ async def speak_text(request: Request):
             if cancellation_details.error_details:
                 print("Error details: {}".format(cancellation_details.error_details))
                 print("Did you set the speech resource key and endpoint values?")
+        return { "status": "error", "reason": str(cancellation_details.reason) }
 
 @app.post("/chat")
 async def chat(request: Request):

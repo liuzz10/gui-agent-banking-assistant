@@ -17,9 +17,12 @@
     .chatbot-header {
       background: #004080;
       color: white;
-      padding: 10px;
-      text-align: center;
+      padding: 0 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
+
     .chatbot-messages {
       flex: 1;
       padding: 10px;
@@ -48,19 +51,72 @@
     }
     .message.user { text-align: right; color: #004080; }
     .message.assistant { text-align: left; color: black; }
+
+    /* Simple switch toggle */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 50px;
+      height: 24px;
+      margin: 10px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0;
+      right: 0; bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 24px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px; width: 18px;
+      left: 3px; bottom: 3px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: #4CAF50;
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(26px);
+    }
+
   </style>
 </head>
 <body>
   <div class="chatbot-container">
-    <div class="chatbot-header">Grace</div>
+    <div class="chatbot-header">
+      <div style="font-weight: bold;">Grace</div>
+      <div style="display: flex; align-items: center;">
+        <label class="switch" style="margin-right: 8px;">
+          <input type="checkbox" id="listen-checkbox" onchange="toggleListening()">
+          <span class="slider"></span>
+        </label>
+        <span id="listening-status" style="width: 80px; display: inline-block; font-size: 12px;">Not listening</span>
+      </div>
+    </div>
+
+
     <div class="chatbot-messages" id="messages"></div>
     <div class="chatbot-input">
       <input type="text" id="chat-input" placeholder="Type a message...">
-      <button onclick="startSTT()" title="Speak">🎤Speak</button>
       <button onclick="sendMessage()">Send</button>
     </div>
   </div>
-
   <script>
     let chatHistory = [];
     // let stepIndex = 0;
@@ -76,8 +132,8 @@
       messages.appendChild(div);
       messages.scrollTop = messages.scrollHeight;
 
-      // Speak if the message is from assistant
-      if (role === "assistant") {
+      // Speak if the message is from assistant and on the listening mode
+      if (role === "assistant" && listening) {
         speak(text);
       }
     }
@@ -155,13 +211,13 @@
     }
 
   
-    // sendMessage() likely fires when: 
+    // sendMessage() fires when: 
     // 1) The user types a message (e.g., "what's next?") 
     // 2) the page auto-resumes on load (newPageLoaded=True)
-    async function sendMessage(newPageLoaded = false, substepUpdated = false) {
+    async function sendMessage(newPageLoaded = false, substepUpdated = false, overrideTranscript = null) {
       console.log("sendMessage called", { newPageLoaded});
       const input = document.getElementById("chat-input");
-      const message = newPageLoaded ? "resuming" : input.value.trim(); // Get user input or use overrideMessage if auto is true.
+      const message = newPageLoaded ? "resuming" : (overrideTranscript ? overrideTranscript : input.value.trim()); // Get user input or use overrideMessage if auto is true.
       if (!message && !newPageLoaded) return; // Don't send empty messages unless the page just loaded.
       const currentPage = window.parent.location.pathname.split("/").pop();
       
@@ -220,7 +276,20 @@
       chatHistory = JSON.parse(sessionStorage.getItem("chatHistory") || "[]");
       intent = sessionStorage.getItem("intent") || null;
 
-      // Render chatbox and history
+      // Restore listening state to show the listening checkbox and status consistently
+      const storedListening = sessionStorage.getItem("listening");
+      if (storedListening === "true") {
+        listening = true;
+        document.getElementById("listen-checkbox").checked = true;
+        document.getElementById("listening-status").textContent = "Listening...";
+        if (recognition) recognition.start();
+      } else {
+        listening = false;
+        document.getElementById("listen-checkbox").checked = false;
+        document.getElementById("listening-status").textContent = "Not listening";
+      }
+
+      // Restore chatbox and history
       for (const m of chatHistory) appendMessage(m.role, m.content); // Re-render chat history
       const input = document.getElementById("chat-input");
       input.addEventListener("keydown", (e) => {
@@ -246,9 +315,10 @@
           sendMessage(substepUpdated = true);
         });
 
-        parentDoc.querySelector("#amount")?.addEventListener("input", () => {
+        parentDoc.querySelector("#amount")?.addEventListener("change", () => {
           sendMessage(substepUpdated = true);
         });
+
       }
     });
   
@@ -266,7 +336,9 @@
       sessionStorage.setItem("intent", intent);
     });
 
+    // Speech Recognition setup
     let recognition;
+    let listening = false;  // global listening flag
 
     if ('webkitSpeechRecognition' in window) {
       recognition = new webkitSpeechRecognition();  // Chrome
@@ -275,16 +347,14 @@
     }
 
     if (recognition) {
-      recognition.continuous = false;
+      recognition.continuous = false;  // Not enable continuous listening
       recognition.interimResults = false;
       recognition.lang = 'en-US';
 
       recognition.onresult = function(event) {
         const transcript = event.results[0][0].transcript;
         console.log("You said:", transcript);
-        const input = document.getElementById("chat-input");
-        input.value = transcript;
-        sendMessage();  // trigger the chatbot with spoken input
+        sendMessage(false, false, transcript);  // pass as param
       };
 
       recognition.onerror = function(event) {
@@ -292,14 +362,41 @@
         alert("Speech recognition error: " + event.error);
       };
 
-      function startSTT() {
-        recognition.start();
+      recognition.onend = function() {
+        if (listening) {
+          console.log("Recognition ended, restarting...");
+          recognition.start();  // auto-restart for next speech
+        }
+      };
+
+      function toggleListening() {
+        const isChecked = document.getElementById("listen-checkbox").checked;
+        const statusLabel = document.getElementById("listening-status");
+
+        if (isChecked && !listening) {
+          recognition.start();
+          listening = true;
+          statusLabel.textContent = "Listening...";
+          sessionStorage.setItem("listening", "true");  // Save ON
+          console.log("Listening started...");
+        } else if (!isChecked && listening) {
+          recognition.stop();
+          listening = false;
+          statusLabel.textContent = "Not listening";
+          sessionStorage.setItem("listening", "false");  // Save OFF
+          console.log("Listening stopped.");
+        }
       }
+
+
     } else {
-      function startSTT() {
+      function toggleListening() {
         alert("Speech recognition is not supported in this browser.");
       }
     }
+
+
+    
 
   </script>
 </body>
