@@ -5,6 +5,7 @@ from openai import AzureOpenAI
 from dotenv import load_dotenv
 from collections import OrderedDict
 import azure.cognitiveservices.speech as speechsdk
+from pydantic import BaseModel
 import ast
 import os
 import json
@@ -54,6 +55,10 @@ CLICK_ETRANSFER_BTN_PROMPT = '''
 You are helping the user transfer money. Your job is to guide the user to click the "e-Transfer" tab on the top right of the website. The button is highlighted in yellow and labeled "e-Transfer". If the user asks questions about the button (location, color, label, or other details), you should answer clearly. Do not exceed 80 characters or 1 sentence in your reply.
 '''
 
+CLICK_ETRANSFER_BTN_PROMPT_FRANK = '''
+You are helping the user transfer money. Your job is to locate and click the "e-Transfer" tab on the top right of the website for the user. The button is highlighted in yellow and labeled "e-Transfer". If the user asks about the button (location, label, or color), answer clearly. Keep your reply under 80 characters or 1 sentence.
+'''
+
 check_transferee_prompt = '''
 You are helping the user transfer money.
 You are currently on the page of selecting a recipient. Your goal is to guide the user through selecting the intended recipient.
@@ -63,12 +68,28 @@ If the user indicates **no**, ask them to click the 'Add New Contact' button to 
 Do not exceed 120 charaters or 2 sentences in your reply.
 '''
 
+check_transferee_prompt_frank = '''
+You are helping the user transfer money.
+You are currently on the page of selecting a recipient. Your goal is to guide the user through selecting the intended recipient.
+First, ask the user the name of the person they want to transfer money to.
+If the user says "Alex" or "Alex Chen", ask them to confirm if it's "Alex Chen".
+If they confirm, say that you will click Alex for them and bring them to the page to send money to Alex Chen.
+'''
+
 ENTER_AMOUNT_PROMPT = '''
 The user is on the page to etransfer money to a recipient. Your goal is to guide the user to look for “From Account” to choose which of the accounts they'd like to transfer money from. Then, enter the amount they want to send. Once they've done that, click on “Continue”. They can also click on "Cancel" at any time. Keep your reply short and easy to understand. Do not exceed 2 sentences.
 '''
 
+ENTER_AMOUNT_PROMPT_FRANK = '''
+You're on the transfer page. Ask the user what account to use and how much to send, then enter the details and click “Continue” for them. If they ask questions, explain clearly.
+'''
+
 confirm_transfer_prompt = '''
 The user is on the last step to e-transfer money. Your goal is to guide the user to double check the information and click on 'Confirm' if want to continue, otherwise click 'Cancel' to cancel the transaction.  Keep your reply short and easy to understand. Do not exceed 2 sentences.
+'''
+
+CONFIRM_TRANSFER_PROMPT_FRANK = '''
+You're on the final step. Ask the user to confirm the details, then click “Confirm” to complete or “Cancel” to stop the transfer for them.
 '''
 
 INTENT_PROMPT = '''
@@ -93,52 +114,128 @@ Examples:
 
 e_transfer = OrderedDict({
     "index.html": {
-        "immediate_reply": "Click the 'e-Transfer' button on the top right of the page",
-        "selector": "#nav-transfer",
-        "prompt": CLICK_ETRANSFER_BTN_PROMPT,
-        "desc": "Clicked the 'E-transfer' tab"
+        "grace": {
+            "immediate_reply": "Click the 'e-Transfer' button on the top right of the page.",
+            "selector": "#nav-transfer",
+            "prompt": CLICK_ETRANSFER_BTN_PROMPT,
+            "desc": "Clicked the 'E-transfer' tab",
+            "action": "click"
+        },
+        "frank": {
+            "immediate_reply": "I'll click the 'e-Transfer' button on the top right for you.",
+            "selector": "#nav-transfer",
+            "prompt": CLICK_ETRANSFER_BTN_PROMPT_FRANK,
+            "desc": "Clicked the 'E-transfer' tab",
+            "action": "click"
+        }
     },
     "etransfer.html": {
-        "immediate_reply": "Please select the recipient you want to transfer money to.",
-        "selector": "",
-        "prompt": check_transferee_prompt,
-        "desc": "Selected the recipient"
+        "grace": {
+            "immediate_reply": "Please select the recipient you want to transfer money to.",
+            "selector": "",
+            "prompt": check_transferee_prompt,
+            "desc": "Selected the recipient",
+            "action": ""
+        },
+        "frank": {
+            "immediate_reply": "Who would you like to send money to? I’ll select the contact for you.",
+            "selector": "",
+            "prompt": check_transferee_prompt_frank,
+            "desc": "Selected the recipient",
+            "action": ""
+        }
     },
     "send_to_alex.html": {
-        "prompt": ENTER_AMOUNT_PROMPT,  # Optional: keep general one
-        "substeps": OrderedDict({
-            "choose_account": {
-                "selector": "#from-account",
-                "immediate_reply": "Please choose the account you want to transfer from.",
-                "completion_condition": "account_chosen",  # flag name
-                "desc": "Selected the account to transfer from"
-            },
-            "enter_amount": {
-                "selector": "#amount",
-                "immediate_reply": "Now enter the amount.",
-                "completion_condition": "amount_entered",
-                "desc": "Entered the amount to transfer"
-            },
-            "continue": {
-                "selector": "#send-button",
-                "immediate_reply": "Now click 'Continue'.",
-                "completion_condition": "continue_clicked",
-                "desc": "Clicked 'Continue'"
-            },
-        }),
-        "desc": "Filled in information and clicked 'Continue'"
+        "grace": {
+            "prompt": ENTER_AMOUNT_PROMPT,
+            "substeps": OrderedDict({
+                "choose_account": {
+                    "selector": "#from-account",
+                    "immediate_reply": "Please choose the account you want to transfer from.",
+                    "completion_condition": "account_chosen",
+                    "desc": "Selected the account to transfer from",
+                    "action": "select",
+                    "value": "savings"
+                },
+                "enter_amount": {
+                    "selector": "#amount",
+                    "immediate_reply": "Now enter the amount.",
+                    "completion_condition": "amount_entered",
+                    "desc": "Entered the amount to transfer",
+                    "action": "fill",
+                    "value": "100.00"
+                },
+                "continue": {
+                    "selector": "#send-button",
+                    "immediate_reply": "Now click 'Continue'.",
+                    "completion_condition": "continue_clicked",
+                    "desc": "Clicked 'Continue'",
+                    "action": "click"
+                }
+            }),
+            "desc": "Filled in information and clicked 'Continue'"
+        },
+        "frank": {
+            "prompt": ENTER_AMOUNT_PROMPT_FRANK,
+            "substeps": OrderedDict({
+                "choose_account": {
+                    "selector": "#from-account",
+                    "immediate_reply": "I'll select 'Savings' as the account to transfer from.",
+                    "completion_condition": "account_chosen",
+                    "desc": "Selected the account to transfer from",
+                    "action": "select",
+                    "value": "savings"
+                },
+                "enter_amount": {
+                    "selector": "#amount",
+                    "immediate_reply": "I'll enter $100.00 as the transfer amount.",
+                    "completion_condition": "amount_entered",
+                    "desc": "Entered the amount to transfer",
+                    "action": "fill",
+                    "value": "100.00"
+                },
+                "continue": {
+                    "selector": "#send-button",
+                    "immediate_reply": "Clicking 'Continue' to proceed.",
+                    "completion_condition": "continue_clicked",
+                    "desc": "Clicked 'Continue'",
+                    "action": "click"
+                }
+            }),
+            "desc": "Filled in information and clicked 'Continue'"
+        }
     },
     "confirm_transfer.html": {
-        "immediate_reply": "Please double-check the information and click 'Confirm' to complete the transfer, or 'Cancel' if you want to stop.",
-        "selector": "#confirm-button, #cancel-button",
-        "prompt": confirm_transfer_prompt,
-        "desc": "Clicked 'Confirm'"
+        "grace": {
+            "immediate_reply": "Please double-check the information and click 'Confirm' to complete the transfer, or 'Cancel' if you want to stop.",
+            "selector": "#confirm-button, #cancel-button",
+            "prompt": confirm_transfer_prompt,
+            "desc": "Clicked 'Confirm'",
+            "action": "click"
+        },
+        "frank": {
+            "immediate_reply": "I'll review the details and click 'Confirm' for you if everything looks good.",
+            "selector": "#confirm-button, #cancel-button",
+            "prompt": CONFIRM_TRANSFER_PROMPT_FRANK,
+            "desc": "Clicked 'Confirm'",
+            "action": "click"
+        }
     },
     "success.html": {
-        "immediate_reply": "Anything else I can help you with?",
-        "selector": "",
-        "prompt": "The user has successfully completed the transfer. Ask if they have more questions or click 'Home' to return to the homepage. Do not exceed 50 characters.",
-        "desc": ""
+        "grace": {
+            "immediate_reply": "Anything else I can help you with?",
+            "selector": "",
+            "prompt": "The user has successfully completed the transfer. Ask if they have more questions or click 'Home' to return to the homepage. Do not exceed 50 characters.",
+            "desc": "",
+            "action": ""
+        },
+        "frank": {
+            "immediate_reply": "Transfer is complete. Let me know what you'd like to do next.",
+            "selector": "",
+            "prompt": "The user has successfully completed the transfer. Ask if they have more questions or click 'Home' to return to the homepage. Do not exceed 50 characters.",
+            "desc": "",
+            "action": ""
+        }
     }
 })
 
@@ -171,7 +268,6 @@ def api_call(prompt, messages=[]):
     print("API response:", response.choices[0].message.content.strip())
     return response.choices[0].message.content.strip()
 
-
 @app.post("/speak")
 async def speak_text(request: Request):
     data = await request.json()
@@ -182,7 +278,6 @@ async def speak_text(request: Request):
     speech_config.speech_synthesis_voice_name = "en-US-FableTurboMultilingualNeural"
     speech_config.speech_synthesis_language = "en-CA"  # Force Canadian English accent
 
-    
     # Output to audio stream
     audio_config = speechsdk.audio.AudioOutputConfig(use_default_speaker=True)
     speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
@@ -210,6 +305,7 @@ async def chat(request: Request):
     intent = body.get("intent") or None
     substep_flags = body.get("substep_flags", {})   # example: {"account_chosen": True}
     current_page = body.get("currentPage")    # e.g., check_transferee
+    assistant = body.get("assistant", "grace").lower()
     current_step = {}   # e.g., {"desc": "Clicked 'Confirm'", "immediate_reply": "", "prompt": confirm_transfer_prompt, "selector": "#confirm-button, #cancel-button"}
 
     if intent in ["unknown", "null", "", "undefined", None]:
@@ -232,13 +328,14 @@ async def chat(request: Request):
             }
         elif intent in flows:
             if current_page in flows[intent]:
-                current_step = flows[intent][current_page]
+                current_step = flows[intent][current_page][assistant]
                 if "selector" in current_step:
                     print("====Current step found in flows:", current_step)
                     return {
                         "intent": intent,
                         "selector": current_step["selector"],
-                        "botMessage": current_step["immediate_reply"]
+                        "botMessage": current_step["immediate_reply"],
+                        "action": current_step["action"],
                     }
                 else:
                     print("====WIP: No selector found for current step in intent:", current_step)
@@ -252,7 +349,7 @@ async def chat(request: Request):
     else:
         if new_page_loaded or subtask_updated:
             if intent in flows and current_page in flows[intent]:
-                current_step = flows[intent][current_page]
+                current_step = flows[intent][current_page][assistant]
                 substeps = current_step.get("substeps", {})
                 # If there are substeps, check their completion conditions
                 # and send the message for the first uncompleted substep
@@ -261,19 +358,28 @@ async def chat(request: Request):
                         condition = substep.get("completion_condition") # e.g., "account_chosen"
                         print("====Substep_flags:", substep_flags)
                         if not substep_flags.get(condition): # substep_flags looks like this: {"account_chosen": True} => {"account_chosen": True, "amount_entered": False}
-                            return {
+                            response = {
                                 "intent": intent,
                                 "selector": substep["selector"],
                                 "botMessage": substep["immediate_reply"],
-                                "substep_flags": substep_flags
+                                "substep_flags": substep_flags,
+                                "action": substep.get("action", ""),
                             }
+                            if assistant == "frank":
+                                if "action" in substep:
+                                    response["action"] = substep["action"]
+                                if "value" in substep:
+                                    response["value"] = substep["value"]
+                            return response
                 # If no substeps, proceed with the current step
                 elif "selector" in current_step:
-                    return {
+                    response = {
                         "intent": intent,
                         "selector": current_step["selector"],
-                        "botMessage": current_step["immediate_reply"]
+                        "botMessage": current_step["immediate_reply"],
+                        "action": current_step["action"],
                     }
+                    return response
                 else:
                     print("====WIP: No selector found for current step in intent:", current_step)
             else:
@@ -282,18 +388,17 @@ async def chat(request: Request):
             # Intent is identified && at least one instruction has been sent (user asks other questions after the next action has been highlighted), then answer their questions
             # Also need to track if the user change their intent or not here
             if intent in flows and current_page in flows[intent]:
-                current_step = flows[intent][current_page]
+                current_step = flows[intent][current_page][assistant]
                 print("====current_step", current_step)
                 res = api_call(current_step["prompt"], messages)
                 return {
-                    "botMessage": res
-                }
+                    "botMessage": res,
+                    "selector": current_step.get("selector", ""),
+                } # Frontend will keep the old intent, and update the bot message only
     
 
 
 ### Another endpoint to add payees
-
-from pydantic import BaseModel
 
 payees = {}  # key: user_id or session_id, value: list of payees
 

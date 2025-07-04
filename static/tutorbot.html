@@ -3,120 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <title>Chatbot</title>
-  <style>
-    body { margin: 0; font-family: sans-serif; }
-    .chatbot-container {
-      width: 100%;
-      height: 400px;
-      display: flex;
-      flex-direction: column;
-      border: 1px solid #ccc;
-      box-sizing: border-box;
-      font-size: 14px;
-    }
-    .chatbot-header {
-      background: #004080;
-      color: white;
-      padding: 0 10px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .chatbot-messages {
-      flex: 1;
-      padding: 10px;
-      overflow-y: auto;
-      background: #f9f9f9;
-    }
-    .chatbot-input {
-      display: flex;
-      border-top: 1px solid #ccc;
-    }
-    .chatbot-input input {
-      flex: 1;
-      border: none;
-      padding: 10px;
-      font-size: 14px;
-    }
-    .chatbot-input button {
-      background: #004080;
-      color: white;
-      border: none;
-      padding: 10px 15px;
-      cursor: pointer;
-    }
-    .message {
-      margin-bottom: 8px;
-    }
-    .message.user { text-align: right; color: #004080; }
-    .message.assistant { text-align: left; color: black; }
-
-    /* Simple switch toggle */
-    .switch {
-      position: relative;
-      display: inline-block;
-      width: 50px;
-      height: 24px;
-      margin: 10px;
-    }
-
-    .switch input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
-
-    .slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0; left: 0;
-      right: 0; bottom: 0;
-      background-color: #ccc;
-      transition: .4s;
-      border-radius: 24px;
-    }
-
-    .slider:before {
-      position: absolute;
-      content: "";
-      height: 18px; width: 18px;
-      left: 3px; bottom: 3px;
-      background-color: white;
-      transition: .4s;
-      border-radius: 50%;
-    }
-
-    input:checked + .slider {
-      background-color: #4CAF50;
-    }
-
-    input:checked + .slider:before {
-      transform: translateX(26px);
-    }
-
-  </style>
+  <link rel="stylesheet" href="bot_style.css">
 </head>
 <body>
   <div class="chatbot-container">
     <div class="chatbot-header">
-      <div style="font-weight: bold;">Grace</div>
-      <div style="display: flex; align-items: center;">
-        <label class="switch" style="margin-right: 8px;">
+      <div class="chatbot-title">Grace</div>
+      <div class="chatbot-listening-controls">
+        <label class="switch">
           <input type="checkbox" id="listen-checkbox" onchange="toggleListening()">
           <span class="slider"></span>
         </label>
-        <span id="listening-status" style="width: 80px; display: inline-block; font-size: 12px;">Not listening</span>
+        <span id="listening-status" class="listening-status">Not listening</span>
       </div>
     </div>
 
-
     <div class="chatbot-messages" id="messages"></div>
+
     <div class="chatbot-input">
       <input type="text" id="chat-input" placeholder="Type a message...">
       <button onclick="sendMessage()">Send</button>
     </div>
   </div>
+
   <script>
     let chatHistory = [];
     let intent = null;
@@ -124,6 +33,8 @@
     let botMessage = null;
     const currentPage = window.parent.location.pathname.split("/").pop();
 
+    // Function to get the summary of the last user message based on the current page
+    // This function is called when the chatbot detects a confirmation or success page.
     function getSummary() {
       console.log("getSummary called for page:", currentPage);
 
@@ -155,6 +66,8 @@
       return "";
     }
 
+    // Append a message to the chatbox
+    // This function is called when the user sends a message or the assistant responds.
     function appendMessage(role, text, suppressTTS = false) {
       const messages = document.getElementById("messages");
       const div = document.createElement("div");
@@ -184,12 +97,8 @@
       }
     }
   
-    // function highlight(selector) {
-    //   if (!selector) return;
-    //   console.log("selector highlighted", selector);
-    //   window.parent.postMessage({ selector, instruction: "highlight" }, "*");
-    // }
-
+    // Highlight the element in the parent window
+    // This function is called when the chatbot receives a selector from the backend
     function highlight(selector, lastInstruction = "mark-complete") {
       if (!selector) return;
       console.log("lastSelector and selector", lastSelector, selector);
@@ -206,13 +115,17 @@
       lastSelector = selector; // Update the last selector
     }
     
-  
+    // Log user action to the chat history and sessionStorage
     function logUserAction(text) {
       appendMessage("user", text);
       chatHistory.push({ role: "user", content: text });
       sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
     }
 
+    // Update substep flags for the "Transfer Someone" page
+    // This function checks the parent form fields to determine if the user has selected an account and entered an amount.
+    // It returns an object with flags that indicate the progress of the substep.
+    // This is used to track the user's progress in the transfer process.
     function updateSubstepFlagsForTransferSomeone() {
       const substep_flags = {};
 
@@ -235,63 +148,75 @@
       return substep_flags;
     }
 
-    async function speak(text) {
-      try {
-        const response = await fetch("/speak", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ text })
-        });
+    // OPTION1: TTS function using server-side API
+    // async function speak(text) {
+    //   try {
+    //     const response = await fetch("/speak", {
+    //       method: "POST",
+    //       headers: {
+    //         "Content-Type": "application/json"
+    //       },
+    //       body: JSON.stringify({ text })
+    //     });
 
-        const result = await response.json();
-        if (result.status === "success") {
-          console.log("Speech played:", result.text);
-        } else {
-          console.error("TTS Error:", result.reason);
-        }
-      } catch (error) {
-        console.error("Failed to fetch /speak:", error);
-      }
-    }
-
-    // TTS function using Web Speech API
-    // function speak(text) {
-    //   if (!('speechSynthesis' in window)) {
-    //     console.warn("This browser does not support speech synthesis.");
-    //     return;
-    //   }
-
-    //   const utterance = new SpeechSynthesisUtterance(text);
-    //   utterance.lang = 'en-US';
-
-    //   // Pick neutral voice
-    //   const voices = speechSynthesis.getVoices();
-    //   const neutralVoice = voices.find(v =>
-    //     v.name.includes("Google US English")
-    //   );
-    //   if (neutralVoice) {
-    //     utterance.voice = neutralVoice;
-    //     console.log("Using voice:", neutralVoice.name);
-    //   }
-    //   // Stop recognition while speaking
-    //   utterance.onstart = function() {
-    //     if (listening && recognition) {
-    //       console.log("Pausing recognition during TTS");
-    //       recognition.stop();
+    //     const result = await response.json();
+    //     if (result.status === "success") {
+    //       console.log("Speech played:", result.text);
+    //     } else {
+    //       console.error("TTS Error:", result.reason);
     //     }
-    //   };
-    //   // Resume recognition after speaking
-    //   utterance.onend = function() {
-    //     if (listening && recognition) {
-    //       console.log("Resuming recognition after TTS");
-    //       recognition.start();
-    //     }
-    //   };
-    //   // Speak
-    //   speechSynthesis.speak(utterance);
+    //   } catch (error) {
+    //     console.error("Failed to fetch /speak:", error);
+    //   }
     // }
+
+    // OPTION2: TTS function using Web Speech API
+    let voicesReady = false;
+
+    speechSynthesis.onvoiceschanged = () => {
+      voicesReady = true;
+      console.log("Voices loaded:", speechSynthesis.getVoices());
+    };
+
+    function speak(text) {
+      if (!('speechSynthesis' in window)) {
+        console.warn("This browser does not support speech synthesis.");
+        return;
+      }
+
+      if (!voicesReady) {
+        console.warn("Voices not ready yet — skipping TTS:", text);
+        return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+
+      const voices = speechSynthesis.getVoices();
+      const voice = voices.find(v => v.lang === 'en-US' && v.name.includes("Google"));
+      if (voice) {
+        utterance.voice = voice;
+        console.log("Using voice:", voice.name);
+      } else {
+        console.log("No Google US English voice found — using default en-US");
+      }
+
+      utterance.onstart = function() {
+        if (listening && recognition) {
+          console.log("Pausing recognition during TTS");
+          recognition.stop();
+        }
+      };
+
+      utterance.onend = function() {
+        if (listening && recognition) {
+          console.log("Resuming recognition after TTS");
+          recognition.start();
+        }
+      };
+
+      speechSynthesis.speak(utterance);
+    }
 
   
     // sendMessage() fires when: 

@@ -24,27 +24,57 @@
       <p class="balance">$12,874.10</p>
     </div>
   </div>
-  <iframe src="chatbot.html" style="
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    width: 300px;
-    height: 400px;
-    border: none;
-    z-index: 9999;
-  "></iframe>
+  <!-- <iframe src="tutorbot.html" class="chatbot-frame"></iframe> -->
+  <iframe src="tellerbot.html" class="chatbot-frame"></iframe>
   <script>
     let lastHighlightedSelector = null;
 
     window.addEventListener("message", (event) => {
-      const { selector, instruction } = event.data;
+      const { selector, instruction, value } = event.data;
 
-      if (instruction !== "highlight" || typeof selector !== "string") return;
+      if (typeof selector !== "string" || typeof instruction !== "string") return;
 
       lastHighlightedSelector = selector;
-
       const elements = document.querySelectorAll(selector);
-      elements.forEach(el => el.classList.add("highlight"));
+
+      if (instruction === "highlight") {
+        elements.forEach(el => el.classList.add("highlight"));
+      }
+
+      if (instruction === "mark-complete") {
+        elements.forEach(el => el.classList.remove("highlight"));
+      }
+
+      if (instruction === "fill") {
+        elements.forEach(el => {
+          if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+            el.value = value || "";
+            el.dispatchEvent(new Event("input", { bubbles: true }));
+            el.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+        });
+      }
+
+      if (instruction === "select") {
+        elements.forEach(el => {
+          if (el.tagName === "SELECT") {
+            el.value = value || "";
+            el.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+        });
+      }
+
+      if (instruction === "click") {
+        elements.forEach(el => el.click());
+      }
+
+      if (instruction === "submit") {
+        elements.forEach(el => {
+          if (el.tagName === "FORM") {
+            el.submit();
+          }
+        });
+      }
     });
 
     document.addEventListener("click", (e) => {
