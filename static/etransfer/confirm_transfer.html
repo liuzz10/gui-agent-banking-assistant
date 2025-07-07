@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Confirm Transfer - Alex Chen</title>
+  <title>Confirm Transfer - Bob Chen</title>
   <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
@@ -19,8 +19,8 @@
     <div class="payee-box">
       <h2>Confirm e-Transfer</h2>
       <div class="account-box">
-        <p>Name: Alex Chen</p>
-        <p>To: alex.chen@emailaddress.com (autodeposit enabled)</p>
+        <p>Name: Bob Chen</p>
+        <p>To: bob.chen@emailaddress.com (autodeposit enabled)</p>
         <p id="account-display"></p>
         <p id="amount-display"></p>
         <button id="cancel-button" class="button" onclick="window.location.href='etransfer.html'">Cancel</button>
@@ -29,8 +29,8 @@
     </div>
   </div>
 
-  <!-- <iframe src="../tutorbot.html" class="chatbot-frame"></iframe> -->
-  <iframe src="../tellerbot.html" class="chatbot-frame"></iframe>
+  <iframe src="../tutorbot.html" class="chatbot-frame"></iframe>
+  <!-- <iframe src="../tellerbot.html" class="chatbot-frame"></iframe> -->
 
   <script>
     const params = new URLSearchParams(window.location.search);
@@ -44,7 +44,7 @@
       const chatbotIframe = document.querySelector("iframe");
       chatbotIframe.contentWindow.postMessage({
         instruction: "log",
-        text: `🎉 Good job! You successfully transfered $${amount} from your ${account} account to Alex Chen.`
+        text: `🎉 Good job! You successfully transfered $${amount} from your ${account} account to Bob Chen.`
       }, "*");
 
       window.location.href = `success.html?amount=${amount}&account=${account}`;

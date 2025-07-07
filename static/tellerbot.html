@@ -14,7 +14,7 @@
           <input type="checkbox" id="listen-checkbox" onchange="toggleListening()">
           <span class="slider"></span>
         </label>
-        <span id="listening-status" class="listening-status">Not listening</span>
+        <span id="listening-status" class="listening-status">Inactive</span>
       </div>
     </div>
 
@@ -32,6 +32,13 @@
     let lastSelector = null;
     let botMessage = null;
     const currentPage = window.parent.location.pathname.split("/").pop();
+
+    // const originalPostMessage = window.parent.postMessage;
+    // window.parent.postMessage = function(message, targetOrigin, transfer) {
+    //   console.trace("[Iframe postMessage] Message sent:", message);
+    //   return originalPostMessage.call(this, message, targetOrigin, transfer);
+    // };
+
 
     // Function to get the summary of the last user message based on the current page
     // This function is called when the chatbot detects a confirmation or success page.
@@ -108,15 +115,16 @@
         console.log("dehighlighting in chatbot", lastSelector);
         window.parent.postMessage({selector: lastSelector, instruction: lastInstruction}, "*");
       }
-
-      console.log("[Chatbot] Sending highlight to parent:", selector);
+      
       // Highlight the new selector
+      console.log("Sending highlight to parent:", selector);
       window.parent.postMessage({selector, instruction: "highlight"}, "*");
       lastSelector = selector; // Update the last selector
     }
 
     // FRANK UNIQUE FUNCTION: Perform an action on the parent page
     function performAction(selector, action, value = null) {
+        console.log("Sending action:", { selector, action, value });
         window.parent.postMessage({ selector, instruction: action, value }, "*");
     }
 
@@ -177,6 +185,7 @@
 
     // OPTION2: TTS function using Web Speech API
     let voicesReady = false;
+    let isSpeaking = false;
 
     speechSynthesis.onvoiceschanged = () => {
       voicesReady = true;
@@ -184,44 +193,34 @@
     };
 
     function speak(text) {
-      if (!('speechSynthesis' in window)) {
-        console.warn("This browser does not support speech synthesis.");
-        return;
-      }
-
-      if (!voicesReady) {
-        console.warn("Voices not ready yet — skipping TTS:", text);
-        return;
-      }
+      if (!('speechSynthesis' in window)) return;
+      if (!voicesReady) return;
 
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'en-US';
 
       const voices = speechSynthesis.getVoices();
       const voice = voices.find(v => v.lang === 'en-US' && v.name.includes("Google"));
-      if (voice) {
-        utterance.voice = voice;
-        console.log("Using voice:", voice.name);
-      } else {
-        console.log("No Google US English voice found — using default en-US");
-      }
+      if (voice) utterance.voice = voice;
 
-      utterance.onstart = function() {
+      utterance.onstart = function () {
+        isSpeaking = true;
         if (listening && recognition) {
-          console.log("Pausing recognition during TTS");
-          recognition.stop();
+          recognition.abort();  // ⛔️ stop immediately
         }
       };
 
-      utterance.onend = function() {
+      utterance.onend = function () {
+        isSpeaking = false;
         if (listening && recognition) {
-          console.log("Resuming recognition after TTS");
-          recognition.start();
+          setTimeout(() => recognition.start(), 800);  // ✅ add delay
         }
       };
 
       speechSynthesis.speak(utterance);
     }
+
+
 
   
     // sendMessage() fires when: 
@@ -246,7 +245,7 @@
 
       input.value = "";
   
-      const res = await fetch("/chat", {
+      const res = await fetch("/tellerbot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -283,12 +282,16 @@
 
       // FRANK UNIQUE PART: This checks if the backend returned an action (like "fill"/"click"/"select") and sends it to the main page after a short delay.
       if (selector && data.action) {
-        setTimeout(() => performAction(selector, data.action, data.value), 3000);
+        setTimeout(() => performAction(selector, data.action, data.value), 5000);
     }
     }
   
     // runs only once when chatbot.html is first rendered in the browser (i.e., when the iframe is inserted into the DOM and loads the chatbot page).
     window.addEventListener("DOMContentLoaded", () => {
+      // Let parent know which assistant
+      console.log("Sending assistant to parent: frank");
+      window.parent.postMessage({ instruction: "sendAssistant", assistant: "frank" }, "*");
+
       // Load chat history, intent
       console.log("DOMContentLoaded");  // 🔍 baseline check
       chatHistory = JSON.parse(sessionStorage.getItem("chatHistory") || "[]");
@@ -299,12 +302,12 @@
       if (storedListening === "true") {
         listening = true;
         document.getElementById("listen-checkbox").checked = true;
-        document.getElementById("listening-status").textContent = "Listening...";
+        document.getElementById("listening-status").textContent = "Active";
         if (recognition) recognition.start();
       } else {
         listening = false;
         document.getElementById("listen-checkbox").checked = false;
-        document.getElementById("listening-status").textContent = "Not listening";
+        document.getElementById("listening-status").textContent = "Inactive";
       }
 
       // Restore chatbox and history
@@ -316,7 +319,7 @@
 
       // Automatically send a message: if there's no intent, asking for intent. If there's, resuming the conversation.
       if (!intent) {
-        appendMessage("assistant", "Hi! I'm Frank. Tell me what to do, and I'll take care of it.");
+        appendMessage("assistant", "Hi! I'm Frank. Tell me what you want to do, for example, e-transfer, and I'll take care of it.");
       } else {
         // Figure out the step based on intent + page
         // This logic is only run when the chatbot is first loaded, not on every message sent.
@@ -370,26 +373,35 @@
       recognition.lang = 'en-US';
 
       recognition.onresult = function(event) {
+        if (isSpeaking) {
+          console.warn("Ignoring recognition during TTS");
+          return;
+        }
         const transcript = event.results[0][0].transcript;
         console.log("You said:", transcript);
-        sendMessage(false, false, transcript);  // pass as param
+        sendMessage(false, false, transcript);
       };
 
       recognition.onerror = function(event) {
-        console.error("Speech recognition error:", event.error);
-
-        if (event.error === "no-speech") {
-          // No alert — user was silent, that's OK
+        if (event.error === "no-speech" || event.error === "aborted") {
+          // Suppress benign errors
+          console.log("Ignored speech error:", event.error);
           return;
         }
 
+        // Only alert on real unexpected errors
         alert("Speech recognition error: " + event.error);
       };
 
       recognition.onend = function() {
         if (listening) {
-          console.log("Recognition ended, restarting...");
-          recognition.start();  // auto-restart for next speech
+          if (isSpeaking) {
+            console.log("TTS still speaking, delaying recognition restart...");
+            setTimeout(() => recognition.onend(), 500); // retry until TTS ends
+          } else {
+            console.log("Restarting recognition...");
+            recognition.start();
+          }
         }
       };
 
@@ -400,24 +412,23 @@
         if (isChecked && !listening) {
           recognition.start();
           listening = true;
-          statusLabel.textContent = "Listening...";
+          statusLabel.textContent = "Active";
           sessionStorage.setItem("listening", "true");  // Save ON
           console.log("Listening started...");
         } else if (!isChecked && listening) {
           recognition.stop();
           listening = false;
-          statusLabel.textContent = "Not listening";
+          statusLabel.textContent = "Inactive";
           sessionStorage.setItem("listening", "false");  // Save OFF
           console.log("Listening stopped.");
         }
       }
-
-
     } else {
       function toggleListening() {
         alert("Speech recognition is not supported in this browser.");
       }
     }
+
   </script>
 </body>
 </html>

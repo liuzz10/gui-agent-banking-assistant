@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Send Money - Alex Chen</title>
+  <title>Send Money - Bob Chen</title>
   <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
@@ -17,8 +17,8 @@
 
   <div class="content">
     <div class="payee-box">
-      <h2>Send to Alex Chen</h2>
-      <p>Email: alex.chen@emailaddress.com (autodeposit is enabled)</p>
+      <h2>Send to Bob Chen</h2>
+      <p>Email: bob.chen@emailaddress.com (autodeposit is enabled)</p>
     
       <label for="from-account">From Account:</label><br>
       <select id="from-account" style="padding: 10px; width: 220px; margin-top: 10px; border-radius: 6px; border: 1px solid #ccc;">
@@ -34,8 +34,8 @@
     </div>    
   </div>
 
-  <!-- <iframe src="../tutorbot.html" class="chatbot-frame"></iframe> -->
-  <iframe src="../tellerbot.html" class="chatbot-frame"></iframe>
+  <iframe src="../tutorbot.html" class="chatbot-frame"></iframe>
+  <!-- <iframe src="../tellerbot.html" class="chatbot-frame"></iframe> -->
 
   <script>
     document.addEventListener("DOMContentLoaded", () => {
@@ -61,7 +61,7 @@
         const chatbotIframe = document.querySelector("iframe");
         chatbotIframe.contentWindow.postMessage({
           instruction: "log",
-          text: `✅ You plan to send $${amount} to Alex Chen from your ${account} account.`
+          text: `✅ You plan to send $${amount} to Bob Chen from your ${account} account.`
         }, "*");
 
         window.location.href = `confirm_transfer.html?amount=${amount}&account=${account}`;

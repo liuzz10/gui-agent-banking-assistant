@@ -24,14 +24,27 @@
       <p class="balance">$12,874.10</p>
     </div>
   </div>
-  <!-- <iframe src="tutorbot.html" class="chatbot-frame"></iframe> -->
-  <iframe src="tellerbot.html" class="chatbot-frame"></iframe>
+  <iframe src="tutorbot.html" class="chatbot-frame"></iframe>
+  <!-- <iframe src="tellerbot.html" class="chatbot-frame"></iframe> -->
   <script>
     let lastHighlightedSelector = null;
 
+    let assistant = "grace"; // Default assistant
     window.addEventListener("message", (event) => {
-      const { selector, instruction, value } = event.data;
+      // 🔹 First handle assistant assignment
+      if (event.data?.instruction === "sendAssistant" && event.data.assistant) {
+        assistant = event.data.assistant;
+        sessionStorage.setItem("assistant", assistant);
+        console.log("✅ Assistant set to:", assistant);
+        return;  // ✅ Important: stop further processing for this message
+      }
 
+      // Ignore messages not from your iframe
+      if (!event.data || typeof event.data !== "object") return;
+      if (!("instruction" in event.data)) return;
+
+      const { selector, instruction, value } = event.data;
+      console.log("Received message from chatbot:", selector, instruction, value);
       if (typeof selector !== "string" || typeof instruction !== "string") return;
 
       lastHighlightedSelector = selector;
@@ -40,11 +53,9 @@
       if (instruction === "highlight") {
         elements.forEach(el => el.classList.add("highlight"));
       }
-
       if (instruction === "mark-complete") {
         elements.forEach(el => el.classList.remove("highlight"));
       }
-
       if (instruction === "fill") {
         elements.forEach(el => {
           if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
@@ -54,7 +65,6 @@
           }
         });
       }
-
       if (instruction === "select") {
         elements.forEach(el => {
           if (el.tagName === "SELECT") {
@@ -63,11 +73,16 @@
           }
         });
       }
-
       if (instruction === "click") {
-        elements.forEach(el => el.click());
+          elements.forEach(el => {
+            const event = new MouseEvent("click", {
+              bubbles: true,
+              cancelable: true,
+              view: window
+            });
+            el.dispatchEvent(event);
+          });
       }
-
       if (instruction === "submit") {
         elements.forEach(el => {
           if (el.tagName === "FORM") {
@@ -78,13 +93,25 @@
     });
 
     document.addEventListener("click", (e) => {
+      console.log("Clicked element on index.html:", e.target);
       if (!lastHighlightedSelector) return;
 
       const elements = document.querySelectorAll(lastHighlightedSelector);
       for (const el of elements) {
         if (el === e.target || el.contains(e.target)) {
           const chatbotIframe = document.querySelector("iframe");
-          const msg = `✅ You clicked: "${el.innerText.trim()}"`;
+          const clickedText = el.innerText?.trim() || el.value || el.id || "an element"; // fallback
+
+          let msg;
+          console.log("Current assistant", assistant)
+          if (assistant.toLowerCase() === "frank") {
+            msg = `✅ I clicked "${clickedText}" for you`;
+          } else if (assistant.toLowerCase() === "grace") {
+            console.log("Current assistant", assistant)
+            msg = `✅ You clicked "${clickedText}"`;
+          } else {
+            msg = ``; // fallback/default
+          }
 
           chatbotIframe.contentWindow.postMessage({
             instruction: "log",

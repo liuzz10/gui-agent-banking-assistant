@@ -172,6 +172,7 @@
 
     // OPTION2: TTS function using Web Speech API
     let voicesReady = false;
+    let isSpeaking = false;
 
     speechSynthesis.onvoiceschanged = () => {
       voicesReady = true;
@@ -179,44 +180,73 @@
     };
 
     function speak(text) {
-      if (!('speechSynthesis' in window)) {
-        console.warn("This browser does not support speech synthesis.");
-        return;
-      }
-
-      if (!voicesReady) {
-        console.warn("Voices not ready yet — skipping TTS:", text);
-        return;
-      }
+      if (!('speechSynthesis' in window)) return;
+      if (!voicesReady) return;
 
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'en-US';
 
       const voices = speechSynthesis.getVoices();
       const voice = voices.find(v => v.lang === 'en-US' && v.name.includes("Google"));
-      if (voice) {
-        utterance.voice = voice;
-        console.log("Using voice:", voice.name);
-      } else {
-        console.log("No Google US English voice found — using default en-US");
-      }
+      if (voice) utterance.voice = voice;
 
-      utterance.onstart = function() {
+      utterance.onstart = function () {
+        isSpeaking = true;
         if (listening && recognition) {
-          console.log("Pausing recognition during TTS");
-          recognition.stop();
+          recognition.abort();  // ⛔️ stop immediately
         }
       };
 
-      utterance.onend = function() {
+      utterance.onend = function () {
+        isSpeaking = false;
         if (listening && recognition) {
-          console.log("Resuming recognition after TTS");
-          recognition.start();
+          setTimeout(() => recognition.start(), 800);  // ✅ add delay
         }
       };
 
       speechSynthesis.speak(utterance);
     }
+
+
+    // function speak(text) {
+    //   if (!('speechSynthesis' in window)) {
+    //     console.warn("This browser does not support speech synthesis.");
+    //     return;
+    //   }
+
+    //   if (!voicesReady) {
+    //     console.warn("Voices not ready yet — skipping TTS:", text);
+    //     return;
+    //   }
+
+    //   const utterance = new SpeechSynthesisUtterance(text);
+    //   utterance.lang = 'en-US';
+
+    //   const voices = speechSynthesis.getVoices();
+    //   const voice = voices.find(v => v.lang === 'en-US' && v.name.includes("Google"));
+    //   if (voice) {
+    //     utterance.voice = voice;
+    //     console.log("Using voice:", voice.name);
+    //   } else {
+    //     console.log("No Google US English voice found — using default en-US");
+    //   }
+
+    //   utterance.onstart = function() {
+    //     if (listening && recognition) {
+    //       console.log("Pausing recognition during TTS");
+    //       recognition.stop();
+    //     }
+    //   };
+
+    //   utterance.onend = function() {
+    //     if (listening && recognition) {
+    //       console.log("Resuming recognition after TTS");
+    //       recognition.start();
+    //     }
+    //   };
+
+    //   speechSynthesis.speak(utterance);
+    // }
 
   
     // sendMessage() fires when: 
@@ -241,7 +271,7 @@
 
       input.value = "";
   
-      const res = await fetch("/chat", {
+      const res = await fetch("/tutorbot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -250,7 +280,8 @@
           substepUpdated,
           intent,
           currentPage,
-          substep_flags  // ✅ Send subtask progress
+          substep_flags,  // ✅ Send subtask progress
+          assistant: "grace",  // Always use Grace for this chatbot
         })
       });
   
@@ -260,7 +291,7 @@
 
       intent = data.intent
       selector = data.selector || null;
-      botMessage = data.botMessage || "Hmmm not sure if I understand. Please tell me your goal.";
+      botMessage = data.botMessage || "Hmmm not sure if I understand. Please tell me what you want to do.";
       
       appendMessage("assistant", botMessage);
       chatHistory.push({ role: "assistant", content: botMessage });
@@ -278,6 +309,10 @@
   
     // runs only once when chatbot.html is first rendered in the browser (i.e., when the iframe is inserted into the DOM and loads the chatbot page).
     window.addEventListener("DOMContentLoaded", () => {
+      // Let parent know which assistant
+      console.log("Sending assistant to parent: grace");
+      window.parent.postMessage({ instruction: "sendAssistant", assistant: "grace" }, "*");
+
       // Load chat history, intent
       console.log("DOMContentLoaded");  // 🔍 baseline check
       chatHistory = JSON.parse(sessionStorage.getItem("chatHistory") || "[]");
@@ -333,6 +368,7 @@
     window.addEventListener("message", (event) => {
       const { instruction, text } = event.data;
       if (instruction === "log" && typeof text === "string") {
+        console.log("Received log message from parent:", text);
         logUserAction(text);
       }
     });
@@ -359,26 +395,35 @@
       recognition.lang = 'en-US';
 
       recognition.onresult = function(event) {
+        if (isSpeaking) {
+          console.warn("Ignoring recognition during TTS");
+          return;
+        }
         const transcript = event.results[0][0].transcript;
         console.log("You said:", transcript);
-        sendMessage(false, false, transcript);  // pass as param
+        sendMessage(false, false, transcript);
       };
 
       recognition.onerror = function(event) {
-        console.error("Speech recognition error:", event.error);
-
-        if (event.error === "no-speech") {
-          // No alert — user was silent, that's OK
+        if (event.error === "no-speech" || event.error === "aborted") {
+          // Suppress benign errors
+          console.log("Ignored speech error:", event.error);
           return;
         }
 
+        // Only alert on real unexpected errors
         alert("Speech recognition error: " + event.error);
       };
 
       recognition.onend = function() {
         if (listening) {
-          console.log("Recognition ended, restarting...");
-          recognition.start();  // auto-restart for next speech
+          if (isSpeaking) {
+            console.log("TTS still speaking, delaying recognition restart...");
+            setTimeout(() => recognition.onend(), 500); // retry until TTS ends
+          } else {
+            console.log("Restarting recognition...");
+            recognition.start();
+          }
         }
       };
 
@@ -400,17 +445,20 @@
           console.log("Listening stopped.");
         }
       }
-
-
     } else {
       function toggleListening() {
         alert("Speech recognition is not supported in this browser.");
       }
     }
 
-
-    
-
+    window.addEventListener("message", (event) => {
+      if (event.data.instruction === "requestAssistant") {
+        const assistant = "grace"; // or make dynamic later
+        sessionStorage.setItem("assistant", assistant); // For next page
+        console.log("Requesting assistant from parent window — sending:", assistant);
+        window.parent.postMessage({ instruction: "sendAssistant", assistant }, "*");
+      }
+    });
   </script>
 </body>
 </html>

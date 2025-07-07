@@ -23,36 +23,106 @@
     
       <h3>Saved Contacts</h3>
       <div class="payee-list">
-        <button class="button contact-button" id="contact-alex" onclick="window.location.href='send_to_alex.html'">Alex Chen (alex.chen@emailaddress.com)</button>
+        <button class="button contact-button" id="contact-bob" onclick="window.location.href='send_to_alex.html'">Bob Chen (bob.chen@emailaddress.com)</button>
         <button class="button contact-button" id="contact-sophia">Sophia Smith (sophia.smith@emailaddress.com)</button>
         <button class="button contact-button" id="contact-david">David Kim (david.kim@emailaddress.com)</button>
       </div>
     </div>    
 
-  <!-- <iframe src="../tutorbot.html" class="chatbot-frame"></iframe> -->
-  <iframe src="../tellerbot.html" class="chatbot-frame"></iframe>
+  <iframe src="../tutorbot.html" class="chatbot-frame"></iframe>
+  <!-- <iframe src="../tellerbot.html" class="chatbot-frame"></iframe> -->
 
   <script>
     let lastHighlightedSelector = null;
 
-    window.addEventListener("message", (event) => {
-      const { selector, instruction } = event.data;
+    // const originalPostMessage = window.postMessage;
+    // window.postMessage = function(message, targetOrigin, transfer) {
+    //   console.trace("[Parent postMessage] Message sent:", message);
+    //   return originalPostMessage.call(this, message, targetOrigin, transfer);
+    // };
 
-      if (instruction !== "highlight" || typeof selector !== "string") return;
+    // Take action based on messages from the chatbot
+    let assistant = "grace"; // Default assistant
+    window.addEventListener("message", (event) => {
+      // 🔹 First handle assistant assignment
+      if (event.data?.instruction === "sendAssistant" && event.data.assistant) {
+        assistant = event.data.assistant;
+        sessionStorage.setItem("assistant", assistant);
+        console.log("✅ Assistant set to:", assistant);
+        return;  // ✅ Important: stop further processing for this message
+      }
+
+      // Ignore messages not from your iframe
+      if (!event.data || typeof event.data !== "object") return;
+      if (!("instruction" in event.data)) return;
+
+      const { selector, instruction, value } = event.data;
+      console.log("Received message from chatbot:", selector, instruction, value);
+      if (typeof selector !== "string" || typeof instruction !== "string") return;
 
       lastHighlightedSelector = selector;
-
       const elements = document.querySelectorAll(selector);
-      elements.forEach(el => el.classList.add("highlight"));
+
+      if (instruction === "highlight") {
+        elements.forEach(el => el.classList.add("highlight"));
+      }
+      if (instruction === "mark-complete") {
+        elements.forEach(el => el.classList.remove("highlight"));
+      }
+      if (instruction === "fill") {
+        elements.forEach(el => {
+          if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+            el.value = value || "";
+            el.dispatchEvent(new Event("input", { bubbles: true }));
+            el.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+        });
+      }
+      if (instruction === "select") {
+        elements.forEach(el => {
+          if (el.tagName === "SELECT") {
+            el.value = value || "";
+            el.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+        });
+      }
+      if (instruction === "click") {
+          elements.forEach(el => {
+            const event = new MouseEvent("click", {
+              bubbles: true,
+              cancelable: true,
+              view: window
+            });
+            el.dispatchEvent(event);
+          });
+      }
+      if (instruction === "submit") {
+        elements.forEach(el => {
+          if (el.tagName === "FORM") {
+            el.submit();
+          }
+        });
+      }
     });
 
     document.addEventListener("click", (e) => {
+      console.log("Clicked element:", e.target);
       if (!lastHighlightedSelector) return;
       const elements = document.querySelectorAll(lastHighlightedSelector);
       for (const el of elements) {
         if (el === e.target || el.contains(e.target)) {
           const chatbotIframe = document.querySelector("iframe");
-          const msg = `✅ You clicked: "${el.innerText.trim()}"`;
+          
+          let msg;
+          console.log("Current assistant", assistant)
+          if (assistant.toLowerCase() === "frank") {
+            msg = `✅ I selected "Bob Chen" for you`;
+          } else if (assistant.toLowerCase() === "grace") {
+            console.log("Current assistant", assistant)
+            msg = `✅ You selected "Bob Chen"`;
+          } else {
+            msg = `✅ You selected "Bob Chen"`; // fallback/default
+          }
 
           chatbotIframe.contentWindow.postMessage({
             instruction: "log",
