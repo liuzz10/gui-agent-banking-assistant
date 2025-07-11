@@ -19,11 +19,11 @@
     </div>
 
     <div class="chatbot-messages" id="messages"></div>
-
     <div class="chatbot-input">
       <input type="text" id="chat-input" placeholder="Type a message...">
       <button onclick="sendMessage()">Send</button>
     </div>
+
   </div>
 
   <script>
@@ -31,6 +31,7 @@
     let intent = null;
     let lastSelector = null;
     let botMessage = null;
+    const waitToTakeAction = 5000;
     const currentPage = window.parent.location.pathname.split("/").pop();
 
     // const originalPostMessage = window.parent.postMessage;
@@ -161,6 +162,35 @@
       return substep_flags;
     }
 
+    function toggleListening() {
+      const isChecked = document.getElementById("listen-checkbox").checked;
+      const statusLabel = document.getElementById("listening-status");
+
+      if (isChecked && !listening) {
+        recognition.start();
+        listening = true;
+        statusLabel.textContent = "Active";
+        sessionStorage.setItem("listening", "true");
+
+        // Show first assistant message
+        const welcomeMessage = "Hi! I'm Frank. Tell me what you want to do, for example, e-transfer, and I'll take care of it.";
+        appendMessage("assistant", welcomeMessage);
+
+        // ✅ Only resume if intent already exists
+        if (intent) {
+          console.log("Calling sendMessage for resuming");
+          sendMessage(true);
+        }
+
+      } else if (!isChecked && listening) {
+        recognition.stop();
+        listening = false;
+        statusLabel.textContent = "Inactive";
+        sessionStorage.setItem("listening", "false");
+      }
+    }
+
+
     // OPTION1: TTS function using server-side API
     // async function speak(text) {
     //   try {
@@ -282,7 +312,7 @@
 
       // FRANK UNIQUE PART: This checks if the backend returned an action (like "fill"/"click"/"select") and sends it to the main page after a short delay.
       if (selector && data.action) {
-        setTimeout(() => performAction(selector, data.action, data.value), 5000);
+        setTimeout(() => performAction(selector, data.action, data.value), waitToTakeAction);
     }
     }
   
@@ -304,6 +334,15 @@
         document.getElementById("listen-checkbox").checked = true;
         document.getElementById("listening-status").textContent = "Active";
         if (recognition) recognition.start();
+        // ✅ Resume the conversation automatically if listening is active and intent exists
+        if (listening && intent) {
+          console.log("Auto-resuming on new page");
+          sendMessage(newPageLoaded = true);
+        }
+      } else if (storedListening === "false") {
+        listening = false;
+        document.getElementById("listen-checkbox").checked = false;
+        document.getElementById("listening-status").textContent = "Inactive";
       } else {
         listening = false;
         document.getElementById("listen-checkbox").checked = false;
@@ -317,16 +356,16 @@
         if (e.key === "Enter") sendMessage();
       });
 
-      // Automatically send a message: if there's no intent, asking for intent. If there's, resuming the conversation.
-      if (!intent) {
-        appendMessage("assistant", "Hi! I'm Frank. Tell me what you want to do, for example, e-transfer, and I'll take care of it.");
-      } else {
-        // Figure out the step based on intent + page
-        // This logic is only run when the chatbot is first loaded, not on every message sent.
-        // This is to ensure that the chatbot can resume the conversation from the correct step.
-        console.log("calling sendMessage for resuming")
-        sendMessage(newPageLoaded = true);
-      }
+      // // Automatically send a message: if there's no intent, asking for intent. If there's, resuming the conversation.
+      // if (!intent) {
+      //   appendMessage("assistant", "Hi! I'm Frank. Tell me what you want to do, for example, e-transfer, and I'll take care of it.");
+      // } else {
+      //   // Figure out the step based on intent + page
+      //   // This logic is only run when the chatbot is first loaded, not on every message sent.
+      //   // This is to ensure that the chatbot can resume the conversation from the correct step.
+      //   console.log("calling sendMessage for resuming")
+      //   sendMessage(newPageLoaded = true);
+      // }
 
       if (window.parent.location.pathname.endsWith("send_to_alex.html")) {
         const parentDoc = window.parent.document;
@@ -404,25 +443,6 @@
           }
         }
       };
-
-      function toggleListening() {
-        const isChecked = document.getElementById("listen-checkbox").checked;
-        const statusLabel = document.getElementById("listening-status");
-
-        if (isChecked && !listening) {
-          recognition.start();
-          listening = true;
-          statusLabel.textContent = "Active";
-          sessionStorage.setItem("listening", "true");  // Save ON
-          console.log("Listening started...");
-        } else if (!isChecked && listening) {
-          recognition.stop();
-          listening = false;
-          statusLabel.textContent = "Inactive";
-          sessionStorage.setItem("listening", "false");  // Save OFF
-          console.log("Listening stopped.");
-        }
-      }
     } else {
       function toggleListening() {
         alert("Speech recognition is not supported in this browser.");

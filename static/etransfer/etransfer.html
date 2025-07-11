@@ -29,8 +29,8 @@
       </div>
     </div>    
 
-  <iframe src="../tutorbot.html" class="chatbot-frame"></iframe>
-  <!-- <iframe src="../tellerbot.html" class="chatbot-frame"></iframe> -->
+  <!-- <iframe src="../tutorbot.html" class="chatbot-frame"></iframe> -->
+  <iframe src="../tellerbot.html" class="chatbot-frame"></iframe>
 
   <script>
     let lastHighlightedSelector = null;
@@ -121,7 +121,7 @@
             console.log("Current assistant", assistant)
             msg = `✅ You selected "Bob Chen"`;
           } else {
-            msg = `✅ You selected "Bob Chen"`; // fallback/default
+            msg = `✅ "Bob Chen" selected`; // fallback/default
           }
 
           chatbotIframe.contentWindow.postMessage({

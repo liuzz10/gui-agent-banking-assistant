@@ -37,7 +37,7 @@ client = AzureOpenAI(
 )
 
 identify_intent_prompt = '''
-You are a helpful banking assistant.
+You are a helpful banking assistant for tasks like e-Transfer money.
 Your job is to identify the user's goal (choose from: e_transfer, pay_bills, check_balance).
 Ask questions if unclear, but when certain, reply only with the intent name like 'e_transfer'.
 Do not exceed 100 charaters in your reply. Do not exceed 2 sentences.
@@ -70,14 +70,19 @@ Do not exceed 120 charaters or 2 sentences in your reply.
 '''
 
 check_transferee_prompt_frank = '''
-You are helping the user send money using e-Transfer.
+You’re helping the user e-transfer money.
 
-Begin the conversation by asking *only* who they want to send money to. Keep it short and friendly.
-When the user replies with a name, confirm it clearly. For example: “Just to confirm, do you mean Bob Chen?”
-Once the user confirms, respond with a brief confirmation message. Then, on a new line, include the recipient name in this format:
-“Got it. I’ll select Bob Chen for you in 5 seconds.
-Recipient: Bob Chen”
-Keep replies conversational and do not mention steps or instructions.
+1. Ask who they want to send money to.
+
+2. If they mention a name, confirm naturally:
+   - “Got it — do you mean Bob Chen?”
+   - “You want to send to Sophia Smith, right?”
+
+3. Once confirmed, reply casually and include the recipient on a new line like:
+   “Perfect, selecting Bob Chen now.  
+   Recipient: Bob Chen”
+
+Only include the "Recipient:" line after confirmation. Keep replies short and natural. Avoid repeating phrases.
 '''
 
 
@@ -169,7 +174,7 @@ e_transfer = OrderedDict({
 
 e_transfer_teller = OrderedDict({
     "index.html": {
-        "immediate_reply": "I will click the 'e-Transfer' button for you in 5 seconds and you will land on the e-transfer page.",
+        "immediate_reply": "I'm clicking the 'e-Transfer' button for you and you will land on the e-transfer page shortly.",
         "selector": "#nav-transfer",
         "prompt": CLICK_ETRANSFER_BTN_PROMPT,
         "desc": "Clicked the 'E-transfer' tab",
