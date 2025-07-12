@@ -72,23 +72,30 @@ Do not exceed 120 charaters or 2 sentences in your reply.
 check_transferee_prompt_frank = '''
 You’re helping the user e-transfer money.
 
-1. Ask who they want to send money to.
+Your task happens in 3 steps:
 
-2. If they mention a name, confirm naturally:
-   - “Got it — do you mean Bob Chen?”
-   - “You want to send to Sophia Smith, right?”
+1. Ask who they want to send money to (if not already mentioned).
 
-3. Once confirmed, reply casually and include the recipient on a new line like:
-   “Perfect, selecting Bob Chen now.  
-   Recipient: Bob Chen”
+2. If they mention a name, confirm if it's Bob Chen. DO NOT act yet.
+   - For example: “Do you mean Bob Chen?” or “You want to send to Sophia Smith, right?”
+   - Do NOT say anything like “selecting” or include any “Recipient:” line yet.
+   - Just confirm the name clearly and conversationally.
 
-Only include the "Recipient:" line after confirmation. Keep replies short and natural. Avoid repeating phrases.
+3. If the user says yes or otherwise confirms, proceed casually:
+   - For example: “Perfect, I'm selecting Bob Chen for you.”
+   - Then add:  
+     Recipient: Bob Chen
+
+Rules:
+- Only include the "Recipient:" line after user confirmation.
+- Keep replies short, casual, and non-repetitive.
 '''
 
 
 ENTER_AMOUNT_PROMPT = '''
 
-The user is on the page to etransfer money to a recipient. Your goal is to guide the user to look for “From Account” to choose which of the accounts they'd like to transfer money from. Then, enter the amount they want to send. Once they've done that, click on “Continue”. They can also click on "Cancel" at any time. Keep your reply short and easy to understand. Do not exceed 2 sentences.
+The user is on the page to etransfer money to a recipient. 
+Your goal is to ask the user which account they want to choose as “From Account” and choose the accounts they'd like to transfer money from. Then, enter the amount they want to send. Once they've done that, click on “Continue”. They can also click on "Cancel" at any time. Keep your reply short and easy to understand. Do not exceed 2 sentences.
 '''
 
 confirm_transfer_prompt = '''
@@ -114,6 +121,23 @@ Examples:
 - Would you like to transfer money, pay a bill, or check your balance?
 - What banking task would you like to complete today?
 """
+
+send_to_alex_choose_account_prompt = '''
+You're helping the user select the source account to send money from.
+
+1. Ask which account they want to use.
+2. If the user mentions one, confirm casually:  
+   “Got it — you want to use your chequing account?”
+3. Once they confirm, reply:
+   “Okay, I'm selecting chequing account for you.”  
+   Then include:
+   Account: chequing
+
+Rules:
+- Valid account values are: chequing or savings.
+- Never guess. If unsure, ask again.
+- Keep replies short and conversational.
+'''
 
 known_contacts = {
     "alex chen": "#contact-alex",
@@ -194,7 +218,9 @@ e_transfer_teller = OrderedDict({
                 "selector": "#from-account",
                 "immediate_reply": "Which account would you want to transfer from?",
                 "completion_condition": "account_chosen",  # flag name
-                "desc": "Selected the account to transfer from"
+                "desc": "Selected the account to transfer from",
+                "action": "select",
+                "prompt": send_to_alex_choose_account_prompt,
             },
             "enter_amount": {
                 "selector": "#amount",
@@ -249,6 +275,32 @@ def merge_consecutive_messages(messages):
             merged.append(msg)
     return merged
 
+# Utility function to handle conversational substeps
+def handle_conversational_substep(prompt: str, messages: list, expected_key: str, selector: str, action: str):
+    response = api_call(prompt, messages)
+    print("GPT response:", response)
+
+    key_found = None
+    for line in response.splitlines():
+        if line.lower().startswith(expected_key.lower() + ":"):
+            key_found = line.split(":", 1)[1].strip()
+            break
+
+    if key_found:
+        return {
+            "botMessage": response.splitlines()[0],  # e.g., “Okay, selecting chequing account.”
+            "selector": selector,
+            "action": action,
+            "value": key_found
+        }
+    else:
+        return {
+            "botMessage": response,
+            "selector": "",
+            "action": ""
+        }
+
+
 def api_call(prompt, messages=[]):
     cleaned_messages = merge_consecutive_messages(messages)
     # print("API prompt", prompt)
@@ -259,6 +311,8 @@ def api_call(prompt, messages=[]):
     )
     print("API response:", response.choices[0].message.content.strip())
     return response.choices[0].message.content.strip()
+
+
 
 
 @app.post("/speak")
@@ -432,7 +486,6 @@ async def chat(request: Request):
     # Intent is identified && a new page just loaded, so no instruction has been sent, then send an initial instruction directly
     # Intent is identified && the user has updated a subtask but didn't send messages to the chatbot, then send the next substep instruction
     else:
-        # if new_page_loaded or subtask_updated:
         if intent in flows and current_page in flows[intent][assistant]:
             current_step = flows[intent][assistant][current_page]
             # Step 3: Handle dynamic behavior before static substeps
@@ -448,11 +501,9 @@ async def chat(request: Request):
                     if line.lower().startswith("recipient:"):
                         recipient_name = line.split(":", 1)[1].strip()
                         break
-
                 print("====Extracted recipient name:", recipient_name)
                 selector = "#contact-bob" if "bob" in recipient_name.lower() else ""
                 print("====Recipient selector:", selector)
-
                 if selector:
                     # Extract the first sentence (before newline or period)
                     first_sentence = clarification.splitlines()[0].strip()
@@ -475,17 +526,40 @@ async def chat(request: Request):
             # If there are substeps, check their completion conditions
             # and send the message for the first uncompleted substep
             if substeps:
-                for _, substep in substeps.items():
-                    condition = substep.get("completion_condition") # e.g., "account_chosen"
-                    print("====Substep_flags:", substep_flags)
-                    if not substep_flags.get(condition): # substep_flags looks like this: {"account_chosen": True} => {"account_chosen": True, "amount_entered": False}
+                for key, substep in substeps.items():
+                    condition = substep.get("completion_condition")
+                    if not substep_flags.get(condition):
+                        print("====Handling substep:", key)
+
+                        # Conversational steps only if 'prompt' is defined
+                        if substep.get("prompt"):
+                            # Determine the expected key to extract from GPT
+                            expected_key = "account" if key == "choose_account" else "amount" if key == "enter_amount" else ""
+
+                            result = handle_conversational_substep(
+                                prompt=substep["prompt"],
+                                messages=messages,
+                                expected_key=expected_key,
+                                selector=substep["selector"],
+                                action=substep.get("action", "")
+                            )
+
+                            result.update({
+                                "intent": intent,
+                                "substep_flags": substep_flags
+                            })
+                            return result
+
+                        # Fallback: immediate instruction (non-conversational)
                         return {
                             "intent": intent,
                             "selector": substep["selector"],
                             "botMessage": substep["immediate_reply"],
-                            "substep_flags": substep_flags,
-                            "action": substep.get("action", "")
+                            "action": substep.get("action", ""),
+                            "substep_flags": substep_flags
                         }
+
+
             # If no substeps, proceed with the current step
             elif "selector" in current_step:
                 return {

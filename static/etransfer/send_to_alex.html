@@ -68,23 +68,77 @@
       });
     });
 
+    // Take action based on messages from the chatbot
+    let assistant = "grace"; // Default assistant
     window.addEventListener("message", (event) => {
-      const { selector, instruction } = event.data;
-      if (typeof selector !== "string" || !instruction) return;
-      console.log("Received message from chatbot:", selector, instruction);
+      // 🔹 First handle assistant assignment
+      if (event.data?.instruction === "sendAssistant" && event.data.assistant) {
+        assistant = event.data.assistant;
+        sessionStorage.setItem("assistant", assistant);
+        console.log("✅ Assistant set to:", assistant);
+        return;  // ✅ Important: stop further processing for this message
+      }
 
+      // Ignore messages not from your iframe
+      if (!event.data || typeof event.data !== "object") return;
+      if (!("instruction" in event.data)) return;
+
+      const { selector, instruction, value } = event.data;
+      console.log("Received message from chatbot:", selector, instruction, value);
+      if (typeof selector !== "string" || typeof instruction !== "string") return;
+
+      lastHighlightedSelector = selector;
       const elements = document.querySelectorAll(selector);
+
       if (instruction === "highlight") {
         elements.forEach(el => el.classList.add("highlight"));
-      } else if (instruction === "dehighlight") {
+      }
+      if (instruction === "mark-complete") {
         elements.forEach(el => el.classList.remove("highlight"));
-      } else if (instruction === "mark-complete") {
+      }
+      if (instruction === "fill") {
         elements.forEach(el => {
-          el.classList.remove("highlight");
-          el.classList.add("completed");
+          if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+            el.value = value || "";
+            el.dispatchEvent(new Event("input", { bubbles: true }));
+            el.dispatchEvent(new Event("change", { bubbles: true }));
+          }
         });
       }
-    })
+      if (instruction === "select") {
+        elements.forEach(el => {
+          if (el.tagName === "SELECT") {
+            const match = Array.from(el.options).find(
+              opt => opt.textContent.trim().toLowerCase() === value.toLowerCase() ||
+                    opt.value.trim().toLowerCase() === value.toLowerCase()
+            );
+            if (match) {
+              el.value = match.value;
+              el.dispatchEvent(new Event("change", { bubbles: true }));
+            } else {
+              console.warn("No matching <option> found for:", value);
+            }
+          }
+        });
+      }
+      if (instruction === "click") {
+          elements.forEach(el => {
+            const event = new MouseEvent("click", {
+              bubbles: true,
+              cancelable: true,
+              view: window
+            });
+            el.dispatchEvent(event);
+          });
+      }
+      if (instruction === "submit") {
+        elements.forEach(el => {
+          if (el.tagName === "FORM") {
+            el.submit();
+          }
+        });
+      }
+    });
   </script>
 
 </body>

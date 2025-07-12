@@ -173,7 +173,8 @@
         sessionStorage.setItem("listening", "true");
 
         // Show first assistant message
-        const welcomeMessage = "Hi! I'm Frank. Tell me what you want to do, for example, e-transfer, and I'll take care of it.";
+        // const welcomeMessage = "Hi! I'm Frank. Tell me what you want to do, for example, e-transfer, and I'll take care of it.";
+        const welcomeMessage = "What's your goal";
         appendMessage("assistant", welcomeMessage);
 
         // ✅ Only resume if intent already exists
@@ -219,7 +220,7 @@
 
     speechSynthesis.onvoiceschanged = () => {
       voicesReady = true;
-      console.log("Voices loaded:", speechSynthesis.getVoices());
+      // console.log("Voices loaded:", speechSynthesis.getVoices());
     };
 
     function speak(text) {
