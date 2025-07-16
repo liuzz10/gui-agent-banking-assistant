@@ -31,6 +31,7 @@
     let intent = null;
     let lastSelector = null;
     let botMessage = null;
+    let state = JSON.parse(sessionStorage.getItem("state") || "null");
     const waitToTakeAction = 5000;
     const currentPage = window.parent.location.pathname.split("/").pop();
 
@@ -107,21 +108,27 @@
   
     // Highlight the element in the parent window
     // This function is called when the chatbot receives a selector from the backend
+    let activeHighlights = new Set();
+
     function highlight(selector, lastInstruction = "mark-complete") {
       if (!selector) return;
-      console.log("lastSelector and selector", lastSelector, selector);
 
-      // Dehighlight the previous selector if it's different
-      if (lastSelector && lastSelector !== selector) {
-        console.log("dehighlighting in chatbot", lastSelector);
-        window.parent.postMessage({selector: lastSelector, instruction: lastInstruction}, "*");
+      // Avoid re-highlighting the same selector
+      if (!activeHighlights.has(selector)) {
+        console.log("Highlighting:", selector);
+        window.parent.postMessage({ selector, instruction: "highlight" }, "*");
+        activeHighlights.add(selector);
       }
-      
-      // Highlight the new selector
-      console.log("Sending highlight to parent:", selector);
-      window.parent.postMessage({selector, instruction: "highlight"}, "*");
-      lastSelector = selector; // Update the last selector
     }
+
+    function dehighlightAll(lastInstruction = "mark-complete") {
+      activeHighlights.forEach(selector => {
+        console.log("Dehighlighting:", selector);
+        window.parent.postMessage({ selector, instruction: lastInstruction }, "*");
+      });
+      activeHighlights.clear();
+    }
+
 
     // FRANK UNIQUE FUNCTION: Perform an action on the parent page
     function performAction(selector, action, value = null) {
@@ -264,6 +271,8 @@
       if (!message && !newPageLoaded) return; // Don't send empty messages unless the page just loaded.
       
       let substep_flags = {};
+
+      // This is used to track the user's progress in the transfer process.
       if (currentPage === "send_to_alex.html") {
         substep_flags = updateSubstepFlagsForTransferSomeone();
       }
@@ -285,6 +294,7 @@
           substepUpdated,
           intent,
           currentPage,
+          state,
           substep_flags,  // ✅ Send subtask progress
           assistant: "frank"    // FRANK UNIQUE PARAMETER: specify the assistant name
         })
@@ -295,26 +305,41 @@
       // console.log("flags", data.substep_flags);
 
       intent = data.intent || intent ; // Use the intent from the response or keep the current one
-      selector = data.selector || null;
+      // selector = data.selector || null;
       botMessage = data.botMessage || "Hmmm not sure if I understand. Please tell me your goal.";
       
       appendMessage("assistant", botMessage);
       chatHistory.push({ role: "assistant", content: botMessage });
+
       sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
-  
       if (intent && intent !== "unknown") {
         sessionStorage.setItem("intent", intent);
       }
-      
-      if (selector) {
-        sessionStorage.setItem("selector", selector);
-        highlight(selector);
+      // if (selector) {
+      //   sessionStorage.setItem("selector", selector);
+      //   highlight(selector);
+      // }
+      if (data.state) {
+        state = data.state;
+        sessionStorage.setItem("state", JSON.stringify(state));
       }
 
-      // FRANK UNIQUE PART: This checks if the backend returned an action (like "fill"/"click"/"select") and sends it to the main page after a short delay.
-      if (selector && data.action) {
-        setTimeout(() => performAction(selector, data.action, data.value), waitToTakeAction);
-    }
+      // FRANK UNIQUE PART: This checks if the backend returned actions (like "fill", "click", or "select")
+      // and sends them to the main page after a short delay.
+      // Dehighlight anything from the last step
+      dehighlightAll();
+
+      if (Array.isArray(data.action)) {
+        data.action.forEach(act => {
+          if (act.selector && act.action) {
+            highlight(act.selector); // highlight immediately
+
+            setTimeout(() => {
+              performAction(act.selector, act.action, act.value);
+            }, waitToTakeAction);
+          }
+        });
+      }
     }
   
     // runs only once when chatbot.html is first rendered in the browser (i.e., when the iframe is inserted into the DOM and loads the chatbot page).
@@ -330,25 +355,20 @@
 
       // Restore listening state to show the listening checkbox and status consistently
       const storedListening = sessionStorage.getItem("listening");
-      if (storedListening === "true") {
-        listening = true;
-        document.getElementById("listen-checkbox").checked = true;
-        document.getElementById("listening-status").textContent = "Active";
-        if (recognition) recognition.start();
-        // ✅ Resume the conversation automatically if listening is active and intent exists
-        if (listening && intent) {
-          console.log("Auto-resuming on new page");
-          sendMessage(newPageLoaded = true);
-        }
-      } else if (storedListening === "false") {
-        listening = false;
-        document.getElementById("listen-checkbox").checked = false;
-        document.getElementById("listening-status").textContent = "Inactive";
-      } else {
-        listening = false;
-        document.getElementById("listen-checkbox").checked = false;
-        document.getElementById("listening-status").textContent = "Inactive";
+      listening = storedListening === "true";
+
+      document.getElementById("listen-checkbox").checked = listening;
+      document.getElementById("listening-status").textContent = listening ? "Active" : "Inactive";
+
+      if (listening && recognition) {
+        recognition.start();
       }
+
+      if (intent) {
+        console.log("Auto-resuming on new page");
+        sendMessage(true);  // ✅ Clean, unified resume
+      }
+
 
       // Restore chatbox and history
       for (const m of chatHistory) appendMessage(m.role, m.content, suppressTTS=true); // Re-render chat history

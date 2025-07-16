@@ -9,6 +9,7 @@ from pydantic import BaseModel
 import ast
 import os
 import json
+import re
 
 load_dotenv(override=True)
 
@@ -125,13 +126,13 @@ Examples:
 send_to_alex_choose_account_prompt = '''
 You're helping the user select the source account to send money from.
 
-1. Ask which account they want to use.
+1. Ask which account they want to use. DO NOT act yet.
 2. If the user mentions one, confirm casually:  
    “Got it — you want to use your chequing account?”
 3. Once they confirm, reply:
    “Okay, I'm selecting chequing account for you.”  
    Then include:
-   Account: chequing
+   VALUE: chequing (use the actual account they said)
 
 Rules:
 - Valid account values are: chequing or savings.
@@ -139,11 +140,96 @@ Rules:
 - Keep replies short and conversational.
 '''
 
-known_contacts = {
-    "alex chen": "#contact-alex",
-    "bob chen": "#contact-bob",
-    "sophia smith": "#contact-sophia"
-}
+send_to_alex_enter_amount_prompt = '''
+You're helping the user fill in amount to send money.
+
+1. Ask how much they want to use. DO NOT act yet.
+2. If the user mentions a number, confirm casually:  
+   “Got it — you want to send 100 dollars?”
+3. Once they confirm, reply:
+   “Okay, I'm entering 100 dollars for you.”  
+   Then include:
+   VALUE: [a number] (use the actual number they said)
+
+Rules:
+- Valid amount are numbers.
+- Never guess. If unsure, ask again.
+- Keep replies short and conversational.
+'''
+
+send_to_alex_click_continue_prompt = '''
+You're helping the user fill in amount to send money.
+
+1. Ask them to double check information. For example:
+   "Let's quickly double-check all the information before proceeding. Are you sending <$100> from your <savings> account to <Bob Chen>?" (Replacing things in [] with actual values)
+2. Once they confirm, reply:
+   “Okay, I'm clicking 'Continue' for you.”
+   Then include:
+   VALUE: None
+
+Rules:
+- Never guess. If unsure, ask again.
+- Keep replies short and conversational.
+'''
+
+
+SEND_MONEY_PROMPT_FRANK = '''
+You are a helpful banking assistant.
+
+Page: {currentPage}  
+Goal: {intent}
+
+Form:
+- account: {account}
+- amount: {amount}
+
+Instructions:
+1. Your goal is to fill in the form with non-null values by asking the user questions. For exampple "Which account do you want to use? And how much do you want to send?"
+2. You must fill in both "account" and "amount" fields.
+3. If the user gives a new value, confirm it casually. Change only that field.
+6. After your message, append the updated state in the format below.
+
+Respond like this:
+
+<your reply>
+
+---
+STATE:
+{{
+  "account": "chequing" or "savings" or null,
+  "amount": 150 or null,
+}}
+
+Notes:
+- "account" means the user's **source** account (sending from). Valid: "chequing" or "savings"
+- Use lowercase for account and number for amount.
+- Never include anything after the STATE block.
+'''
+
+CONFIRMATION_PROMPT = '''
+You are a helpful assistant.
+
+The user has filled out a form with the following information:
+{formatted_fields}
+
+Your job:
+1. Ask the user to confirm if this information is correct. Do not present the form directly. Instead, summarize the key details in a casual way, like: "Can you confirm if you like to send $1000 from your chequing account?"
+2. If the user agrees, respond casually and set "confirmed" to true.
+3. If the user wants to change anything, just say so and set "confirmed" to false.
+4. Do not attempt to update individual fields.
+5. Keep replies short and natural.
+
+After your reply, always append this:
+
+---
+STATE:
+{{
+  "confirmed": true or false
+}}
+'''
+
+
+
 
 e_transfer = OrderedDict({
     "index.html": {
@@ -199,49 +285,28 @@ e_transfer = OrderedDict({
 e_transfer_teller = OrderedDict({
     "index.html": {
         "immediate_reply": "I'm clicking the 'e-Transfer' button for you and you will land on the e-transfer page shortly.",
-        "selector": "#nav-transfer",
         "prompt": CLICK_ETRANSFER_BTN_PROMPT,
         "desc": "Clicked the 'E-transfer' tab",
-        "action": "click"
+        "action": [{"action": "click", "selector": "#nav-transfer"}],  # Frank will click the button for the user
     },
     "etransfer.html": {
-        "selector": "#contact-bob",
         "prompt": check_transferee_prompt_frank,
         "desc": "Selected the recipient",
         "dynamic_handler": "recipient_selection",
-        "action": "click"  # Frank will click the recipient for the user
+        "action": [{"action": "click", "selector": "#contact-bob"}]  # Frank will click the recipient for the user
     },
     "send_to_alex.html": {
-        "prompt": ENTER_AMOUNT_PROMPT,  # Optional: keep general one
-        "substeps": OrderedDict({
-            "choose_account": {
-                "selector": "#from-account",
-                "immediate_reply": "Which account would you want to transfer from?",
-                "completion_condition": "account_chosen",  # flag name
-                "desc": "Selected the account to transfer from",
-                "action": "select",
-                "prompt": send_to_alex_choose_account_prompt,
-            },
-            "enter_amount": {
-                "selector": "#amount",
-                "immediate_reply": "Now enter the amount.",
-                "completion_condition": "amount_entered",
-                "desc": "Entered the amount to transfer"
-            },
-            "continue": {
-                "selector": "#send-button",
-                "immediate_reply": "Now click 'Continue'.",
-                "completion_condition": "continue_clicked",
-                "desc": "Clicked 'Continue'"
-            },
-        }),
-        "desc": "Filled in information and clicked 'Continue'"
+        "immediate_reply": "Which account do you want to transfer from? And how much?",
+        "prompt": SEND_MONEY_PROMPT_FRANK,  # Optional: keep general one
+        "dynamic_handler": "collect_then_act",
+        "state": {"account": None, "amount": None, "confirmed": None},
+        "desc": "Filled in information and clicked 'Continue'",
     },
     "confirm_transfer.html": {
         "immediate_reply": "Please double-check the information and click 'Confirm' to complete the transfer, or 'Cancel' if you want to stop.",
-        "selector": "#confirm-button, #cancel-button",
         "prompt": confirm_transfer_prompt,
-        "desc": "Clicked 'Confirm'"
+        "desc": "Clicked 'Confirm'",
+        "action": [{"action": "click", "selector": "#confirm-button, #cancel-button"}]  # Frank will click the button for the user
     },
     "success.html": {
         "immediate_reply": "Anything else I can help you with?",
@@ -255,11 +320,6 @@ flows = {
     "e_transfer": {"grace": e_transfer, "frank": e_transfer_teller},
 }
 
-# Check if GPT identified a specific person (e.g., Alex Chen, Bob)
-recipient_map = {
-    "bob chen": "#contact-bob",
-    "sophia smith": "#contact-sophia"
-}
 
 # Utility function to merge consecutive messages with the same role. GPT expects alternating roles.
 def merge_consecutive_messages(messages):
@@ -275,32 +335,6 @@ def merge_consecutive_messages(messages):
             merged.append(msg)
     return merged
 
-# Utility function to handle conversational substeps
-def handle_conversational_substep(prompt: str, messages: list, expected_key: str, selector: str, action: str):
-    response = api_call(prompt, messages)
-    print("GPT response:", response)
-
-    key_found = None
-    for line in response.splitlines():
-        if line.lower().startswith(expected_key.lower() + ":"):
-            key_found = line.split(":", 1)[1].strip()
-            break
-
-    if key_found:
-        return {
-            "botMessage": response.splitlines()[0],  # e.g., “Okay, selecting chequing account.”
-            "selector": selector,
-            "action": action,
-            "value": key_found
-        }
-    else:
-        return {
-            "botMessage": response,
-            "selector": "",
-            "action": ""
-        }
-
-
 def api_call(prompt, messages=[]):
     cleaned_messages = merge_consecutive_messages(messages)
     # print("API prompt", prompt)
@@ -312,6 +346,124 @@ def api_call(prompt, messages=[]):
     print("API response:", response.choices[0].message.content.strip())
     return response.choices[0].message.content.strip()
 
+def extract_bot_message_and_state(text: str) -> tuple:
+    botMessage = ""
+    state = {}
+
+    parts = text.strip().split('---')
+    if len(parts) >= 2:
+        botMessage = parts[0].strip()
+
+        # Find and sanitize the STATE block
+        state_match = re.search(r'STATE:\s*({.*})', parts[1], re.DOTALL)
+        if state_match:
+            state_str = state_match.group(1)
+
+            # Remove trailing commas before closing brace
+            state_str = re.sub(r',\s*}', '}', state_str)
+
+            try:
+                state = json.loads(state_str)
+            except json.JSONDecodeError as e:
+                print("⚠️ JSON decode error:", e)
+                state = {}
+    else:
+        botMessage = text.strip()
+
+    return botMessage, state
+
+
+
+def merge_state(existing: dict, update: dict) -> dict:
+    """
+    Merges a partial update into the existing state, overriding only non-null values.
+    """
+    for key, value in update.items():
+        if value is not None:
+            existing[key] = value
+    return existing
+
+
+def build_state_prompt(current_state, currentPage, intent, prompt=SEND_MONEY_PROMPT_FRANK):
+    def safe(val):
+        return json.dumps(val) if val is not None else "null"
+    
+    return prompt.format(
+        currentPage=currentPage,
+        intent=intent,
+        account=safe(current_state.get("account")),
+        amount=safe(current_state.get("amount")),
+        confirmed=safe(current_state.get("confirmed"))
+    )
+
+def generate_actions_from_state(state: dict) -> list:
+    """
+    Given the current state, returns a list of UI actions to perform.
+    - 'account' → action: select, selector: #from-account
+    - 'amount'  → action: fill,   selector: #amount
+    """
+    actions = []
+
+    if state.get("account"):
+        actions.append({
+            "action": "select",
+            "value": state["account"],
+            "selector": "#from-account"
+        })
+
+    if state.get("amount"):
+        actions.append({
+            "action": "fill",
+            "value": state["amount"],
+            "selector": "#amount"
+        })
+
+    return actions
+
+
+def run_conversational_agent(messages, current_state, currentPage, intent, prompt):
+    prompt = build_state_prompt(current_state, currentPage, intent, prompt=prompt)
+    gpt_output = api_call(prompt=prompt, messages=messages)
+
+    # Extract state from the GPT response
+    botMessage, new_state = extract_bot_message_and_state(gpt_output)
+    print("state from GPT:", new_state)
+    return {
+        "botMessage": botMessage,
+        "state": new_state
+    }
+
+def format_fields_for_prompt(state: dict) -> str:
+    return '\n'.join(f"- {k}: {v}" for k, v in state.items())
+
+def run_confirmation_agent(messages, state, intent, current_page, conversational_prompt):
+    formatted_fields = format_fields_for_prompt(state)
+    prompt = CONFIRMATION_PROMPT.format(formatted_fields=formatted_fields)
+
+    gpt_output = api_call(prompt=prompt, messages=messages)
+    botMessage, extracted = extract_bot_message_and_state(gpt_output)
+    print("botMessage:", botMessage)
+    print("extracted:", extracted)
+
+    confirmed = extracted.get("confirmed", False)
+    if confirmed:
+        actions = generate_actions_from_state(state)
+        return {
+            "botMessage": botMessage,
+            "action": actions,
+        }
+    else:
+        # User wants to change something → hand off to conversational agent
+        conversational_response = run_conversational_agent(
+            messages=messages,
+            current_state=state,
+            currentPage=current_page,
+            intent=intent,
+            prompt=conversational_prompt,
+        )
+        return {
+            "botMessage": conversational_response["botMessage"]
+        }
 
 
 
@@ -444,6 +596,7 @@ async def chat(request: Request):
     intent = body.get("intent") or None
     substep_flags = body.get("substep_flags", {})   # example: {"account_chosen": True}
     current_page = body.get("currentPage")    # e.g., check_transferee
+    state = body.get("state", {})  # e.g., {"account": "chequing", "amount": 100, "confirmed": None}
     assistant = body.get("assistant", "grace")  # e.g., "grace" or "frank"
     current_step = {}   # e.g., {"desc": "Clicked 'Confirm'", "immediate_reply": "", "prompt": confirm_transfer_prompt, "selector": "#confirm-button, #cancel-button"}
 
@@ -468,20 +621,20 @@ async def chat(request: Request):
         elif intent in flows:
             if current_page in flows[intent][assistant]:
                 current_step = flows[intent][assistant][current_page]
-                if "selector" in current_step:
+                if "action" in current_step:
                     print("====Current step found in flows:", current_step)
                     return {
                         "intent": intent,
-                        "selector": current_step["selector"],
                         "botMessage": current_step["immediate_reply"],
                         "action": current_step.get("action", "")  # e.g., "click" or "type"
                     }
                 else:
-                    print("====WIP: No selector found for current step in intent:", current_step)
+                    print("====WIP: No action found for current step in intent:", current_step)
             else:
                 print("====current_page not in flows[res]")
         else:
             print("====WIP: Intent not found in flows (GPT hallucination or not built yet)", intent)
+    
     # When an intent is identified, there are two situations:
     # Intent is identified && a new page just loaded, so no instruction has been sent, then send an initial instruction directly
     # Intent is identified && the user has updated a subtask but didn't send messages to the chatbot, then send the next substep instruction
@@ -510,7 +663,7 @@ async def chat(request: Request):
                     return {
                         "intent": intent,
                         "botMessage": first_sentence,
-                        "selector": selector,
+                        # "selector": selector,
                         "action": current_step.get("action", "")
                     }
                 else:
@@ -521,67 +674,53 @@ async def chat(request: Request):
                         "selector": "",
                         "action": ""
                     }
+            
+            elif handler_type == "collect_then_act":
+                print("====Current state:", state)
+                # Step 1: Initial guidance message if state is empty
+                if not state:
+                    return {
+                        "botMessage": current_step["immediate_reply"],
+                        "state": current_step["state"],
+                    }
 
-            substeps = current_step.get("substeps", {})
-            # If there are substeps, check their completion conditions
-            # and send the message for the first uncompleted substep
-            if substeps:
-                for key, substep in substeps.items():
-                    condition = substep.get("completion_condition")
-                    if not substep_flags.get(condition):
-                        print("====Handling substep:", key)
+                print("step 2")
+                # Step 2: If state is partially filled, continue data collection
+                if not (state.get("account") and state.get("amount")):
+                    gpt_response = run_conversational_agent(
+                        messages=messages,
+                        current_state=state,
+                        currentPage=current_page,
+                        intent=intent,
+                        prompt=current_step.get("prompt")
+                    )
 
-                        # Conversational steps only if 'prompt' is defined
-                        if substep.get("prompt"):
-                            # Determine the expected key to extract from GPT
-                            expected_key = "account" if key == "choose_account" else "amount" if key == "enter_amount" else ""
+                    # ✅ After filling both fields, return actions too
+                    filled = gpt_response.get("state", {})
+                    if filled.get("account") and filled.get("amount"):
+                        gpt_response["action"] = generate_actions_from_state(filled)
 
-                            result = handle_conversational_substep(
-                                prompt=substep["prompt"],
-                                messages=messages,
-                                expected_key=expected_key,
-                                selector=substep["selector"],
-                                action=substep.get("action", "")
-                            )
+                    return gpt_response
 
-                            result.update({
-                                "intent": intent,
-                                "substep_flags": substep_flags
-                            })
-                            return result
+                print("step 3")
+                # Step 3: If both fields are filled, confirm with user
+                confirmation_result = run_confirmation_agent(messages, state, current_page, intent, conversational_prompt=current_step.get("prompt"))
 
-                        # Fallback: immediate instruction (non-conversational)
-                        return {
-                            "intent": intent,
-                            "selector": substep["selector"],
-                            "botMessage": substep["immediate_reply"],
-                            "action": substep.get("action", ""),
-                            "substep_flags": substep_flags
-                        }
-
-
+                # Either confirmed → return actions, or not → conversational agent will take over
+                return confirmation_result
+            
             # If no substeps, proceed with the current step
-            elif "selector" in current_step:
+            if "action" in current_step:
                 return {
                     "intent": intent,
-                    "selector": current_step["selector"],
                     "botMessage": current_step["immediate_reply"],
                     "action": current_step.get("action", "")
                 }
             else:
-                print("====WIP: No selector found for current step in intent:", current_step)
+                print("====WIP: No action found for current step in intent:", current_step)
         else:
             print("====WIP: Current page not found in flows for intent:", intent, current_page)
-        # else:
-        #     # Intent is identified && at least one instruction has been sent (user asks other questions after the next action has been highlighted), then answer their questions
-        #     # Also need to track if the user change their intent or not here
-        #     if intent in flows and current_page in flows[intent][assistant]:
-        #         current_step = flows[intent][assistant][current_page]
-        #         print("====current_step", current_step)
-        #         res = api_call(current_step["prompt"], messages)
-        #         return {
-        #             "botMessage": res
-        #         }
+
 
 ### Another endpoint to add payees
 
