@@ -56,7 +56,6 @@ CLICK_ETRANSFER_BTN_PROMPT = '''
 You are helping the user transfer money. Your job is to guide the user to click the "e-Transfer" tab on the top right of the website. The button is highlighted in yellow and labeled "e-Transfer". If the user asks questions about the button (location, color, label, or other details), you should answer clearly. Do not exceed 80 characters or 1 sentence in your reply.
 '''
 
-
 CLICK_ETRANSFER_BTN_PROMPT_FRANK = '''
 You are helping the user transfer money. Your job is to click the "e-Transfer" tab on the top right of the website for the user. The button is highlighted in yellow and labeled "e-Transfer". If the user asks questions about the button (location, color, label, or other details), you should answer clearly. Do not exceed 80 characters or 1 sentence in your reply.
 '''
@@ -187,13 +186,12 @@ Instructions:
 1. Your goal is to fill in the form with non-null values by asking the user questions. For exampple "Which account do you want to use? And how much do you want to send?"
 2. You must fill in both "account" and "amount" fields.
 3. If the user gives a new value, confirm it casually. Change only that field.
-6. After your message, append the updated state in the format below.
+4. After your message, append the updated state in the format below.
 
 Respond like this:
 
 <your reply>
 
----
 STATE:
 {{
   "account": "chequing" or "savings" or null,
@@ -201,7 +199,7 @@ STATE:
 }}
 
 Notes:
-- "account" means the user's **source** account (sending from). Valid: "chequing" or "savings"
+- "account" means the user's **source** account (sending from). Valid values are only: "chequing" or "savings"
 - Use lowercase for account and number for amount.
 - Never include anything after the STATE block.
 '''
@@ -213,20 +211,26 @@ The user has filled out a form with the following information:
 {formatted_fields}
 
 Your job:
-1. Ask the user to confirm if this information is correct. Do not present the form directly. Instead, summarize the key details in a casual way, like: "Can you confirm if you like to send $1000 from your chequing account?"
-2. If the user agrees, respond casually and set "confirmed" to true.
-3. If the user wants to change anything, just say so and set "confirmed" to false.
+1. Ask them to confirm casually — e.g., " I have filled in the information. $10 is the amount that will be sent from your chequing account. Would you like to continue?"
+2. Once the user agrees, respond casually and set "confirmed" to true. "confirmed" is originally set to false.
+3. If the user wants to change anything, say so and set "confirmed" to false.
 4. Do not attempt to update individual fields.
 5. Keep replies short and natural.
 
-After your reply, always append this:
+Your response **must** include:
+- A conversational message first
+- Then a `STATE` block on a new line
 
----
+Example format:
+
+I have filled in the information. $10 is the amount that will be sent from your chequing account. Would you like to continue? 
+
 STATE:
 {{
-  "confirmed": true or false
+  "confirmed": false
 }}
 '''
+
 
 
 
@@ -300,13 +304,14 @@ e_transfer_teller = OrderedDict({
         "prompt": SEND_MONEY_PROMPT_FRANK,  # Optional: keep general one
         "dynamic_handler": "collect_then_act",
         "state": {"account": None, "amount": None, "confirmed": None},
+        "action": [{"action": "click", "selector": "#send-button", "immediate_reply": "Thank you for confirming. I'm clicking 'Continue' for you."}], # After everything's confirmed (the last step)
         "desc": "Filled in information and clicked 'Continue'",
     },
     "confirm_transfer.html": {
-        "immediate_reply": "Please double-check the information and click 'Confirm' to complete the transfer, or 'Cancel' if you want to stop.",
+        "immediate_reply": "Would you like to confirm?",
         "prompt": confirm_transfer_prompt,
         "desc": "Clicked 'Confirm'",
-        "action": [{"action": "click", "selector": "#confirm-button, #cancel-button"}]  # Frank will click the button for the user
+        "action": [{"action": "highlight", "selector": "#confirm-button, #cancel-button"}]  # Frank will click the button for the user
     },
     "success.html": {
         "immediate_reply": "Anything else I can help you with?",
@@ -346,32 +351,43 @@ def api_call(prompt, messages=[]):
     print("API response:", response.choices[0].message.content.strip())
     return response.choices[0].message.content.strip()
 
+
 def extract_bot_message_and_state(text: str) -> tuple:
+    """
+    Extracts the assistant's message and state from a GPT response.
+
+    Assumes the format:
+        <assistant message>
+        STATE:
+        {
+          "account": ...,
+          ...
+        }
+    """
     botMessage = ""
     state = {}
 
-    parts = text.strip().split('---')
-    if len(parts) >= 2:
+    # Split on 'STATE:' to separate message from state
+    parts = text.strip().split("STATE:", 1)
+
+    # Part before STATE is the message
+    if parts:
         botMessage = parts[0].strip()
 
-        # Find and sanitize the STATE block
-        state_match = re.search(r'STATE:\s*({.*})', parts[1], re.DOTALL)
-        if state_match:
-            state_str = state_match.group(1)
+    # Part after STATE should contain the JSON state
+    if len(parts) == 2:
+        state_str = parts[1].strip()
 
-            # Remove trailing commas before closing brace
-            state_str = re.sub(r',\s*}', '}', state_str)
+        # Clean up any trailing commas before closing braces
+        state_str = re.sub(r',\s*\n*\s*}', '}', state_str)
 
-            try:
-                state = json.loads(state_str)
-            except json.JSONDecodeError as e:
-                print("⚠️ JSON decode error:", e)
-                state = {}
-    else:
-        botMessage = text.strip()
+        try:
+            state = json.loads(state_str)
+        except json.JSONDecodeError as e:
+            print("⚠️ JSON decode error:", e)
+            state = {}
 
-    return botMessage, state
-
+    return botMessage, state     
 
 
 def merge_state(existing: dict, update: dict) -> dict:
@@ -441,29 +457,20 @@ def run_confirmation_agent(messages, state, intent, current_page, conversational
     prompt = CONFIRMATION_PROMPT.format(formatted_fields=formatted_fields)
 
     gpt_output = api_call(prompt=prompt, messages=messages)
-    botMessage, extracted = extract_bot_message_and_state(gpt_output)
+    botMessage, new_state = extract_bot_message_and_state(gpt_output)
     print("botMessage:", botMessage)
-    print("extracted:", extracted)
+    print("extracted:", new_state)
 
-    confirmed = extracted.get("confirmed", False)
-    if confirmed:
-        actions = generate_actions_from_state(state)
-        return {
-            "botMessage": botMessage,
-            "action": actions,
-        }
-    else:
-        # User wants to change something → hand off to conversational agent
-        conversational_response = run_conversational_agent(
-            messages=messages,
-            current_state=state,
-            currentPage=current_page,
-            intent=intent,
-            prompt=conversational_prompt,
-        )
-        return {
-            "botMessage": conversational_response["botMessage"]
-        }
+    # ✅ Merge the confirmed value into state
+    updated_state = merge_state(state, new_state)
+    actions = generate_actions_from_state(updated_state)
+    return {
+        "botMessage": botMessage,
+        "action": actions,
+        "state": updated_state,
+    }
+
+# TODO: if user wants to change anything (amount, account)
 
 
 
@@ -532,11 +539,13 @@ async def chat(request: Request):
                 current_step = flows[intent][assistant][current_page]
                 if "selector" in current_step:
                     print("====Current step found in flows:", current_step)
-                    return {
+                    response = {
                         "intent": intent,
-                        "selector": current_step["selector"],
-                        "botMessage": current_step["immediate_reply"]
+                        "botMessage": current_step["immediate_reply"],
+                        "selector": current_step["selector"]
                     }
+                    print("====Response to send:", response)
+                    return response
                 else:
                     print("====WIP: No selector found for current step in intent:", current_step)
             else:
@@ -566,11 +575,13 @@ async def chat(request: Request):
                             }
                 # If no substeps, proceed with the current step
                 elif "selector" in current_step:
-                    return {
+                    response = {
                         "intent": intent,
                         "selector": current_step["selector"],
                         "botMessage": current_step["immediate_reply"]
                     }
+                    print("====Response to send:", response)
+                    return response
                 else:
                     print("====WIP: No selector found for current step in intent:", current_step)
             else:
@@ -623,11 +634,13 @@ async def chat(request: Request):
                 current_step = flows[intent][assistant][current_page]
                 if "action" in current_step:
                     print("====Current step found in flows:", current_step)
-                    return {
+                    response = {
                         "intent": intent,
                         "botMessage": current_step["immediate_reply"],
                         "action": current_step.get("action", "")  # e.g., "click" or "type"
                     }
+                    print("====Response to send:", response)
+                    return response
                 else:
                     print("====WIP: No action found for current step in intent:", current_step)
             else:
@@ -676,7 +689,7 @@ async def chat(request: Request):
                     }
             
             elif handler_type == "collect_then_act":
-                print("====Current state:", state)
+                print("Current state:", state)
                 # Step 1: Initial guidance message if state is empty
                 if not state:
                     return {
@@ -684,9 +697,9 @@ async def chat(request: Request):
                         "state": current_step["state"],
                     }
 
-                print("step 2")
                 # Step 2: If state is partially filled, continue data collection
-                if not (state.get("account") and state.get("amount")):
+                elif not (state.get("account") and state.get("amount")):
+                    print("step 2")
                     gpt_response = run_conversational_agent(
                         messages=messages,
                         current_state=state,
@@ -695,20 +708,36 @@ async def chat(request: Request):
                         prompt=current_step.get("prompt")
                     )
 
-                    # ✅ After filling both fields, return actions too
+                    # After filling both fields, return actions too
                     filled = gpt_response.get("state", {})
                     if filled.get("account") and filled.get("amount"):
                         gpt_response["action"] = generate_actions_from_state(filled)
-
+                        gpt_response["botMessage"] += " Okay give me a moment to fill in the information."
                     return gpt_response
 
-                print("step 3")
-                # Step 3: If both fields are filled, confirm with user
-                confirmation_result = run_confirmation_agent(messages, state, current_page, intent, conversational_prompt=current_step.get("prompt"))
+                elif state.get("confirmed") is not True:
+                    print("step 3")
+                    # Step 3: If both fields are filled, confirm with user
+                    confirmation_result = run_confirmation_agent(messages, state, current_page, intent, conversational_prompt=current_step.get("prompt"))
 
-                # Either confirmed → return actions, or not → conversational agent will take over
-                return confirmation_result
-            
+                    state = confirmation_result["state"]  
+                    confirmation_result["action"] = [{"action": "highlight", "selector": "#send-button"}]  # ✅ important
+                    print("Confirmation result:", confirmation_result)
+                    if state.get("confirmed"):
+                        return {
+                        "botMessage": "I'm clicking 'Continue' for you.",
+                        "action": current_step.get("action", "")
+                    }
+                    else:
+                        # Wait for user change
+                        return confirmation_result
+                else:
+                    return {
+                        "botMessage": "I'm clicking 'Continue' for you.",
+                        "action": current_step.get("action", "")
+                    }
+
+
             # If no substeps, proceed with the current step
             if "action" in current_step:
                 return {
