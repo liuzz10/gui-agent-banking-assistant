@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Savings Activity</title>
+  <link rel="stylesheet" href="../styles.css">
+  <script defer src="download_statement.js"></script>
+</head>
+<body>
+  <nav>
+    <h1>My Online Bank</h1>
+    <div class="nav-buttons">
+      <button onclick="window.location.href='index.html'">Accounts</button>
+      <button onclick="window.location.href='pay_bill/pay_bill.html'">Pay Bills</button>
+      <button onclick="window.location.href='etransfer/etransfer.html'">e-Transfer</button>
+      <button onclick="window.location.href='chequing_activity.html'">Chequing</button>
+      <button class="active-tab" onclick="window.location.href='savings_activity.html'">Savings</button>
+    </div>
+  </nav>
+
+  <div class="content">
+    <button class="button" onclick="window.location.href='../index.html'">⬅  Back to Accounts</button>
+    <br><br>
+    <div class="account-box">
+      <h2>Savings Account</h2>
+      <p class="balance">$12,874.10</p>
+      <h3>Recent Transactions</h3>
+      <table id="savings-table" border="1" style="width:100%; margin-top:10px">
+        <thead>
+          <tr><th>Date</th><th>Description</th><th>Amount</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>2025-07-12</td><td>Interest</td><td>+$14.20</td></tr>
+          <tr><td>2025-07-05</td><td>Transfer to Chequing</td><td>-$500.00</td></tr>
+          <tr><td>2025-07-01</td><td>Interest</td><td>+$13.95</td></tr>
+        </tbody>
+      </table>
+      <br><br>
+      <button class="button button-primary" onclick="downloadStatement('savings-table', 'savings_statement.csv')">Download Statement</button>
+    </div>
+  </div>
+
+  <!-- <iframe src="../tutorbot.html" class="chatbot-frame"></iframe> -->
+  <iframe src="../tellerbot.html" class="chatbot-frame"></iframe>
+</body>
+</html>
