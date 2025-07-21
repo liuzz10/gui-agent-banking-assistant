@@ -16,3 +16,5 @@ function downloadStatement(tableId, filename) {
   link.click();
   document.body.removeChild(link);
 }
+
+

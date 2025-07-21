@@ -2,5 +2,10 @@
 cd banking-agent-local
 python -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+(pip install -r requirements.txt)
 uvicorn main:app --reload
+
+# Authentication errors from:
+* Endpoint are the shorter one
+* double check deployment_name
+* load_dotenv(override=True)

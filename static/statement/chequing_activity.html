@@ -36,11 +36,109 @@
         </tbody>
       </table>
       <br><br>
-      <button class="button button-primary" onclick="downloadStatement('chequing-table', 'chequing_statement.csv')">Download Statement</button>
+      <button class="button button-primary" id="chequing-statement-download" onclick="downloadStatement('chequing-table', 'chequing_statement.csv')">Download Statement</button>
     </div>
   </div>
 
-  <!-- <iframe src="../tutorbot.html" class="chatbot-frame"></iframe> -->
-  <iframe src="../tellerbot.html" class="chatbot-frame"></iframe>
+  <iframe src="../tutorbot.html" class="chatbot-frame"></iframe>
+  <!-- <iframe src="../tellerbot.html" class="chatbot-frame"></iframe> -->
 </body>
+
+<script>
+  let lastHighlightedSelector = null;
+
+  let assistant = "grace"; // Default assistant
+  window.addEventListener("message", (event) => {
+      // 🔹 First handle assistant assignment
+      if (event.data?.instruction === "sendAssistant" && event.data.assistant) {
+      assistant = event.data.assistant;
+      sessionStorage.setItem("assistant", assistant);
+      console.log("✅ Assistant set to:", assistant);
+      return;  // ✅ Important: stop further processing for this message
+      }
+
+      // Ignore messages not from your iframe
+      if (!event.data || typeof event.data !== "object") return;
+      if (!("instruction" in event.data)) return;
+
+      const { selector, instruction, value } = event.data;
+      console.log("Received message from chatbot:", selector, instruction, value);
+      if (typeof selector !== "string" || typeof instruction !== "string") return;
+
+      lastHighlightedSelector = selector;
+      const elements = document.querySelectorAll(selector);
+
+      if (instruction === "highlight") {
+      elements.forEach(el => el.classList.add("highlight"));
+      }
+      if (instruction === "mark-complete") {
+      elements.forEach(el => el.classList.remove("highlight"));
+      }
+      if (instruction === "fill") {
+      elements.forEach(el => {
+          if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+          el.value = value || "";
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+      });
+      }
+      if (instruction === "select") {
+      elements.forEach(el => {
+          if (el.tagName === "SELECT") {
+          el.value = value || "";
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+      });
+      }
+      if (instruction === "click") {
+          elements.forEach(el => {
+          const event = new MouseEvent("click", {
+              bubbles: true,
+              cancelable: true,
+              view: window
+          });
+          el.dispatchEvent(event);
+          });
+      }
+      if (instruction === "submit") {
+      elements.forEach(el => {
+          if (el.tagName === "FORM") {
+          el.submit();
+          }
+      });
+      }
+  });
+
+  document.addEventListener("click", (e) => {
+      console.log("Clicked element on index.html:", e.target);
+      if (!lastHighlightedSelector) return;
+
+      const elements = document.querySelectorAll(lastHighlightedSelector);
+      for (const el of elements) {
+      if (el === e.target || el.contains(e.target)) {
+          const chatbotIframe = document.querySelector("iframe");
+          const clickedText = el.innerText?.trim() || el.value || el.id || "an element"; // fallback
+
+          let msg;
+          console.log("Current assistant", assistant)
+          if (assistant.toLowerCase() === "frank") {
+          msg = `✅ I clicked "${clickedText}" for you`;
+          } else if (assistant.toLowerCase() === "grace") {
+          console.log("Current assistant", assistant)
+          msg = `✅ You clicked "${clickedText}"`;
+          } else {
+          msg = ``; // fallback/default
+          }
+
+          chatbotIframe.contentWindow.postMessage({
+          instruction: "log",
+          text: msg
+          }, "*");
+
+          break; // stop after first match
+      }
+      }
+  });
+</script>
 </html>
