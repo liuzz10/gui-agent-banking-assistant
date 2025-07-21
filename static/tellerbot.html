@@ -23,7 +23,6 @@
       <input type="text" id="chat-input" placeholder="Type a message...">
       <button onclick="sendMessage()">Send</button>
     </div>
-
   </div>
 
   <script>
@@ -40,7 +39,6 @@
     //   console.trace("[Iframe postMessage] Message sent:", message);
     //   return originalPostMessage.call(this, message, targetOrigin, transfer);
     // };
-
 
     // Function to get the summary of the last user message based on the current page
     // This function is called when the chatbot detects a confirmation or success page.
@@ -265,7 +263,7 @@
     // 1) The user types a message (e.g., "what's next?") 
     // 2) the page auto-resumes on load (newPageLoaded=True)
     async function sendMessage(newPageLoaded = false, substepUpdated = false, overrideTranscript = null) {
-      console.log("sendMessage called", { newPageLoaded});
+      console.log("sendMessage called (newPageLoaded, substepUpdated, overrideTranscript)", newPageLoaded, substepUpdated, overrideTranscript);
       const input = document.getElementById("chat-input");
       const message = newPageLoaded ? "resuming" : (overrideTranscript ? overrideTranscript : input.value.trim()); // Get user input or use overrideMessage if auto is true.
       if (!message && !newPageLoaded) return; // Don't send empty messages unless the page just loaded.
@@ -365,7 +363,7 @@
       }
 
       if (intent) {
-        console.log("Auto-resuming on new page");
+        console.log("Calling sendMessage: Auto-resuming on new page");
         sendMessage(true);  // ✅ Clean, unified resume
       }
 
@@ -374,7 +372,10 @@
       for (const m of chatHistory) appendMessage(m.role, m.content, suppressTTS=true); // Re-render chat history
       const input = document.getElementById("chat-input");
       input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") sendMessage();
+        if (e.key === "Enter") {
+          console.log("Calling sendMessage on Enter key");
+          sendMessage();
+        }
       });
 
       // // Automatically send a message: if there's no intent, asking for intent. If there's, resuming the conversation.
@@ -388,18 +389,28 @@
       //   sendMessage(newPageLoaded = true);
       // }
 
+      // if (window.parent.location.pathname.endsWith("send_to_alex.html")) {
+      //   const parentDoc = window.parent.document;
+      //   console.log("parentDoc", parentDoc);
+
       if (window.parent.location.pathname.endsWith("send_to_alex.html")) {
         const parentDoc = window.parent.document;
-        console.log("parentDoc", parentDoc);
 
-        parentDoc.querySelector("#from-account")?.addEventListener("change", () => {
-          sendMessage(substepUpdated = true);
-        });
+        const accountEl = parentDoc.querySelector("#from-account");
+        const amountEl = parentDoc.querySelector("#amount");
 
-        parentDoc.querySelector("#amount")?.addEventListener("change", () => {
-          sendMessage(substepUpdated = true);
-        });
+        function checkAndSendIfComplete() {
+          const accountReady = accountEl && accountEl.value !== "instruction";
+          const amountReady = amountEl && parseFloat(amountEl.value) > 0;
 
+          if (accountReady && amountReady) {
+            console.log("Both account and amount selected — sending message.");
+            sendMessage(substepUpdated = true);  // or sendMessage(substepUpdated = true); if needed
+          }
+        }
+
+        accountEl?.addEventListener("change", checkAndSendIfComplete);
+        amountEl?.addEventListener("change", checkAndSendIfComplete);
       }
     });
   
@@ -438,7 +449,7 @@
           return;
         }
         const transcript = event.results[0][0].transcript;
-        console.log("You said:", transcript);
+        console.log("Calling sendMessage on speech recognition result:", transcript);
         sendMessage(false, false, transcript);
       };
 

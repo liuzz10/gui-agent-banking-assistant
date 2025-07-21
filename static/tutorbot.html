@@ -376,16 +376,17 @@
         if (e.key === "Enter") sendMessage();
       });
 
-      // // Automatically send a message: if there's no intent, asking for intent. If there's, resuming the conversation.
-      // if (!intent) {
-      //   appendMessage("assistant", "Hi! I'm Grace, your banking assistant. How can I help you today?");
-      // } else {
-      //   // Figure out the step based on intent + page
-      //   // This logic is only run when the chatbot is first loaded, not on every message sent.
-      //   // This is to ensure that the chatbot can resume the conversation from the correct step.
-      //   console.log("calling sendMessage for resuming")
-      //   sendMessage(newPageLoaded = true);
-      // }
+      // Comment this out to disable auto-resume on page load
+      // Automatically send a message: if there's no intent, asking for intent. If there's, resuming the conversation.
+      if (!intent) {
+        appendMessage("assistant", "Hi! I'm Grace, your banking assistant. How can I help you today?");
+      } else {
+        // Figure out the step based on intent + page
+        // This logic is only run when the chatbot is first loaded, not on every message sent.
+        // This is to ensure that the chatbot can resume the conversation from the correct step.
+        console.log("calling sendMessage for resuming")
+        sendMessage(newPageLoaded = true);
+      }
 
       if (window.parent.location.pathname.endsWith("send_to_alex.html")) {
         const parentDoc = window.parent.document;
