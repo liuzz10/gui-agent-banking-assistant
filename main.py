@@ -222,19 +222,27 @@ STATE:
 
 e_transfer = OrderedDict({
     "index.html": {
-        "immediate_reply": "Click the 'e-Transfer' button on the top right of the page",
-        "selector": "#nav-transfer",
-        "prompt": CLICK_ETRANSFER_BTN_PROMPT,
-        "desc": "Clicked the 'E-transfer' tab"
+        "substeps": OrderedDict({
+            "click_etransfer": {
+                "immediate_reply": "Click the 'e-Transfer' button on the top right of the page",
+                "selector": "#nav-transfer",
+                "prompt": CLICK_ETRANSFER_BTN_PROMPT,
+                "desc": "Clicked the 'E-transfer' tab"
+            }
+        })
     },
     "etransfer.html": {
-        "immediate_reply": "Please select the recipient you want to transfer money to.",
-        "selector": "",
-        "prompt": CHECK_TRANSFEREE_PROMPT,
-        "desc": "Selected the recipient"
+        "substeps": OrderedDict({
+            "select_recipient": {
+                "immediate_reply": "Please select the recipient you want to transfer money to.",
+                "selector": "",
+                "prompt": CHECK_TRANSFEREE_PROMPT,
+                "desc": "Selected the recipient"
+            }
+        })
     },
     "send_to_alex.html": {
-        "prompt": ENTER_AMOUNT_PROMPT,  # Optional: keep general one
+        # "prompt": ENTER_AMOUNT_PROMPT,  # Optional: keep general one
         "substeps": OrderedDict({
             "choose_account": {
                 "selector": "#from-account",
@@ -255,19 +263,27 @@ e_transfer = OrderedDict({
                 "desc": "Clicked 'Continue'"
             },
         }),
-        "desc": "Filled in information and clicked 'Continue'"
+        # "desc": "Filled in information and clicked 'Continue'"
     },
     "confirm_transfer.html": {
-        "immediate_reply": "Please double-check the information and click 'Confirm' to complete the transfer, or 'Cancel' if you want to stop.",
-        "selector": "#confirm-button, #cancel-button",
-        "prompt": CONFIRM_TRANSFER_PROMPT,
-        "desc": "Clicked 'Confirm'"
+        "substeps": OrderedDict({
+            "confirm_transfer": {
+                "immediate_reply": "Please double-check the information and click 'Confirm' to complete the transfer, or 'Cancel' if you want to stop.",
+                "selector": "#confirm-button, #cancel-button",
+                "prompt": CONFIRM_TRANSFER_PROMPT,
+                "desc": "Clicked 'Confirm'"
+            }
+        })
     },
     "success.html": {
-        "immediate_reply": "Anything else I can help you with?",
-        "selector": "",
-        "prompt": "The user has successfully completed the transfer. Ask if they have more questions or click 'Home' to return to the homepage. Do not exceed 50 characters.",
-        "desc": ""
+        "substeps": OrderedDict({
+            "success": {
+                "immediate_reply": "Anything else I can help you with?",
+                "selector": "",
+                "prompt": "The user has successfully completed the transfer. Ask if they have more questions or click 'Home' to return to the homepage. Do not exceed 50 characters.",
+                "desc": ""
+            }
+        })
     }
 })
 
@@ -346,6 +362,68 @@ flows = {
     "check_activity": {"grace": check_activity, "frank": check_activity_teller},
 }
 
+# Grace - Alex
+def yesno_classification(new_page_loaded, messages, substep, intent):
+    # 1. Ask the yes/no question if newPageLoaded
+    print("====Yes/No classification handler called")
+    if new_page_loaded:
+        print("New page loaded, asking yes/no question...")
+        return {
+            "intent": intent,
+            "botMessage": substep["immediate_reply"]
+        }
+
+    # 2. Classify user response
+    classification = api_call(YESNO_CLASSIFIER_PROMPT, messages)
+    print("Classification result:", classification)
+    if classification.lower() == "yes":
+        return {
+            "intent": intent,
+            "botMessage": "Great! Please click the highlighted button",
+            "selector": substep["selector"]
+        }
+    elif classification.lower() == "no":
+        return {
+            "intent": intent,
+            "botMessage": "No problem. Let me know if you need anything else."
+        }
+    else:
+        return {
+            "intent": intent,
+            "botMessage": "Sorry, could you please clarify? Do you want to download your statement?"
+        }
+    
+def handle_first_incomplete_substep(substeps, substep_flags, messages, intent, new_page_loaded):
+    # Check the completion conditions of each substep
+    # and handle the first uncompleted substep
+    print("====Handling first incomplete substep...")
+    print("====substep_flags:", substep_flags)
+    for _, substep in substeps.items():
+        condition = substep.get("completion_condition") # e.g., "account_chosen"
+        if not substep_flags.get(condition): # substep_flags looks like this: {"account_chosen": True} => {"account_chosen": True, "amount_entered": False}
+            handler_type = substep.get("dynamic_handler", "")
+            if not handler_type:
+                print("====No dynamic handler for current step, sending instruction directly...")
+                return {
+                    "intent": intent,
+                    "selector": substep.get("selector", ""),
+                    "botMessage": substep.get("immediate_reply", ""),
+                    "substep_flags": substep_flags
+                }
+            elif handler_type == "yesno_handler":
+                return yesno_classification(new_page_loaded, messages, substep, intent)
+            
+def handle_known_intent(intent, current_page, substep_flags, messages, new_page_loaded, assistant="grace"):
+    if intent in flows and current_page in flows[intent][assistant]:
+        current_step = flows[intent][assistant][current_page]
+        substeps = current_step.get("substeps", {})
+        print("====substeps:", substeps.keys())
+        return handle_first_incomplete_substep(
+            substeps, substep_flags, messages, intent, new_page_loaded
+        )
+    else:
+        print("====WIP: Intent or current page not found in flows for intent:", intent, current_page)
+        return None
 
 # Utility function to merge consecutive messages with the same role. GPT expects alternating roles.
 def merge_consecutive_messages(messages):
@@ -371,7 +449,6 @@ def api_call(prompt, messages=[]):
     )
     print("API response:", response.choices[0].message.content.strip())
     return response.choices[0].message.content.strip()
-
 
 def extract_bot_message_and_state(text: str) -> tuple:
     """
@@ -410,7 +487,6 @@ def extract_bot_message_and_state(text: str) -> tuple:
 
     return botMessage, state     
 
-
 def merge_state(existing: dict, update: dict) -> dict:
     """
     Merges a partial update into the existing state, overriding only non-null values.
@@ -419,7 +495,6 @@ def merge_state(existing: dict, update: dict) -> dict:
         if value is not None:
             existing[key] = value
     return existing
-
 
 def build_state_prompt(current_state, currentPage, intent, prompt=SEND_MONEY_PROMPT_FRANK):
     def safe(val):
@@ -456,7 +531,6 @@ def generate_actions_from_state(state: dict) -> list:
         })
 
     return actions
-
 
 def run_conversational_agent(messages, current_state, currentPage, intent, prompt):
     prompt = build_state_prompt(current_state, currentPage, intent, prompt=prompt)
@@ -524,18 +598,16 @@ async def speak_text(request: Request):
                 print("Did you set the speech resource key and endpoint values?")
         return { "status": "error", "reason": str(cancellation_details.reason) }
 
-# Grace
+# Grace - Alex
 @app.post("/tutorbot")
 async def chat(request: Request):
     body = await request.json()
     messages = body.get("messages", [])
     new_page_loaded = body.get("newPageLoaded", False)
-    subtask_updated = body.get("substepUpdated", False)
     intent = body.get("intent") or None
     substep_flags = body.get("substep_flags", {})   # example: {"account_chosen": True}
     current_page = body.get("currentPage")    # e.g., check_transferee
     assistant = body.get("assistant", "grace")  # e.g., "grace" or "frank"
-    current_step = {}   # e.g., {"desc": "Clicked 'Confirm'", "immediate_reply": "", "prompt": CONFIRM_TRANSFER_PROMPT, "selector": "#confirm-button, #cancel-button"}
 
     if intent in ["unknown", "null", "", "undefined", None]:
         intent = None
@@ -555,92 +627,11 @@ async def chat(request: Request):
                 "selector": "",
                 "botMessage": follow_up,
             }
-        elif intent in flows:
-            if current_page in flows[intent][assistant]:
-                current_step = flows[intent][assistant][current_page]
-                if "selector" in current_step:
-                    print("====Current step found in flows:", current_step)
-                    response = {
-                        "intent": intent,
-                        "botMessage": current_step["immediate_reply"],
-                        "selector": current_step["selector"]
-                    }
-                    print("====Response to send:", response)
-                    return response
-                else:
-                    print("====WIP: No selector found for current step in intent:", current_step)
-            else:
-                print("====current_page not in flows[res]")
-        else:
-            print("====WIP: Intent not found in flows (GPT hallucination or not built yet)", intent)
-    # When an intent is identified, there are two situations:
-    # Intent is identified && a new page just loaded, so no instruction has been sent, then send an initial instruction directly
-    # Intent is identified && the user has updated a subtask but didn't send messages to the chatbot, then send the next substep instruction
-    else:
-        if intent in flows and current_page in flows[intent][assistant]:
-            current_step = flows[intent][assistant][current_page]
-            print("====current_step", current_step)
-            current_step = flows[intent][assistant][current_page]
-            substeps = current_step.get("substeps", {})
-            # If there are substeps, check their completion conditions
-            # and send the message for the first uncompleted substep
-            if substeps:
-                for _, substep in substeps.items():
-                    condition = substep.get("completion_condition") # e.g., "account_chosen"
-                    print("====Substep_flags:", substep_flags)
-                    if not substep_flags.get(condition): # substep_flags looks like this: {"account_chosen": True} => {"account_chosen": True, "amount_entered": False}
-                        handler_type = substep.get("dynamic_handler", "")
-                        if not handler_type:
-                            print("====No dynamic handler for current step, sending substep message...")
-                            return {
-                                "intent": intent,
-                                "selector": substep["selector"],
-                                "botMessage": substep["immediate_reply"],
-                                "substep_flags": substep_flags
-                            }
-                        elif handler_type == "yesno_handler":
-                            # 1. Ask the yes/no question if newPageLoaded
-                            if new_page_loaded:
-                                print("====New page loaded, asking yes/no question...")
-                                return {
-                                    "intent": intent,
-                                    "botMessage": substep["immediate_reply"]
-                                }
+    # When an intent is identified (either just identified from above block, or passed from the frontend), we need to go to the next step and send the next instruction
+    return handle_known_intent(intent, current_page, substep_flags, messages, new_page_loaded, assistant=assistant)
 
-                            # 2. Classify user response
-                            classification = api_call(YESNO_CLASSIFIER_PROMPT, messages)
-                            print("====Classification result:", classification)
-                            if classification.lower() == "yes":
-                                return {
-                                    "intent": intent,
-                                    "botMessage": "Great! Please click the highlighted button",
-                                    "selector": substep["selector"]
-                                }
-                            elif classification.lower() == "no":
-                                return {
-                                    "intent": intent,
-                                    "botMessage": "No problem. Let me know if you need anything else."
-                                }
-                            else:
-                                return {
-                                    "intent": intent,
-                                    "botMessage": "Sorry, could you please clarify? Do you want to download your statement?"
-                                }
-            # If no substeps, proceed with the current step
-            elif "selector" in current_step:
-                response = {
-                    "intent": intent,
-                    "selector": current_step["selector"],
-                    "botMessage": current_step["immediate_reply"]
-                }
-                print("====Response to send:", response)
-                return response
-            else:
-                print("====WIP: No selector found for current step in intent:", current_step)
-        else:
-            print("====WIP: Current page not found in flows for intent:", intent, current_page)
-    
-# Frank
+
+# Frank - Sam
 @app.post("/tellerbot")
 async def chat(request: Request):
     body = await request.json()
