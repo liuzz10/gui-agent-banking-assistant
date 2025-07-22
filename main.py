@@ -94,7 +94,7 @@ If the user's goal is unclear, ambiguous, or missing, respond with exactly: clar
 Do not guess. Do not explain your choice. Do not include any punctuation or extra words.
 '''
 
-CLARIFICATION_PROMPT = """
+INTENT_CLARIFICATION_PROMPT = """
 The user’s intent is unclear. Your job is to ask a short, polite follow-up question that will help determine whether the user wants to:
 - e_transfer
 - pay_bills
@@ -216,11 +216,33 @@ STATE:
 }}
 '''
 
+YESNO_CLASSIFIER_PROMPT = """
+Does the user say YES to a yes/no question?
+
+Respond with exactly one word:
+- yes
+- no
+- unclear
+
+Do NOT explain or add punctuation.
+"""
+
+# Stage 1: Classify or ask for clarification
+CLASSIFICATION_DECISION_PROMPT = (
+    "Based on the conversation so far, classify the user's intent into one of the following options: "
+    "'{label_list}'.\n\n"
+    "If the user's goal is clear, reply with exactly one of the option names.\n"
+    "If the user's goal is unclear, ambiguous, or missing, respond with exactly: clarification_required."
+    "Do not add any punctuation or extra words other than the option name or 'clarification_required'."
+)
+# Stage 2: Generate a clarification question
+CLARIFICATION_PROMPT = (
+    "The user’s intent is unclear. Your job is to ask a short, polite follow-up question "
+    "that will help determine whether the user wants to: {label_list}."
+)
 
 
-
-
-e_transfer = OrderedDict({
+e_transfer_tutor = OrderedDict({
     "index.html": {
         "substeps": OrderedDict({
             "click_etransfer": {
@@ -322,23 +344,26 @@ e_transfer_teller = OrderedDict({
     }
 })
 
-YESNO_CLASSIFIER_PROMPT = """
-Does the user say YES to a yes/no question?
-
-Respond with exactly one word:
-- yes
-- no
-- unclear
-
-Do NOT explain or add punctuation.
-"""
-
-check_activity = OrderedDict({
+check_activity_tutor = OrderedDict({
     "index.html": {
-        "immediate_reply": "Click the 'View Activity' button on the account that you want to check the activity for.",
-        "selector": "#view_checking_activity",
-        "prompt": "",
-        "desc": "Clicked the 'View Activity' button"
+        "substeps": OrderedDict({
+            "click_activity": {
+                "immediate_reply": "Would you like to check the balance of your checking account or savings account?",
+                "dynamic_handler": "classification_handler",
+                "completion_condition": "account_chosen",  # flag name
+                "desc": "User selects account type to view activity for",
+                "options": {
+                    "chequing_account": {
+                        "selector": "#view_checking_activity",
+                        "desc": "Clicked 'View Activity' for Chequing"
+                    },
+                    "savings_account": {
+                        "selector": "#view_saving_activity",
+                        "desc": "Clicked 'View Activity' for Savings"
+                    }
+                }
+            }
+        })
     },
     "chequing_activity.html": {
         "substeps": OrderedDict({
@@ -351,6 +376,18 @@ check_activity = OrderedDict({
                 "desc": "Prompted user to download chequing statement"
             }
         })
+    },
+    "savings_activity.html": {
+        "substeps": OrderedDict({
+            "download_saving_statement": {
+                "completion_condition": "saving_statement_downloaded",
+                "prompt": "Ask the user if they'd like to download the savings statement. If they say yes, highlight the download button.",
+                "dynamic_handler": "yesno_handler",
+                "selector": "#saving-statement-download",
+                "immediate_reply": "Here's your savings account activity. Would you like to download the statement for your savings account?",
+                "desc": "Prompted user to download savings statement"
+            }
+        })
     }
 })
 
@@ -358,12 +395,12 @@ check_activity_teller = OrderedDict({
 })
 
 flows = {
-    "e_transfer": {"grace": e_transfer, "frank": e_transfer_teller},
-    "check_activity": {"grace": check_activity, "frank": check_activity_teller},
+    "e_transfer": {"grace": e_transfer_tutor, "frank": e_transfer_teller},
+    "check_activity": {"grace": check_activity_tutor, "frank": check_activity_teller},
 }
 
 # Grace - Alex
-def yesno_classification(new_page_loaded, messages, substep, intent):
+def yesno_classification_handler(new_page_loaded, messages, substep, intent):
     # 1. Ask the yes/no question if newPageLoaded
     print("====Yes/No classification handler called")
     if new_page_loaded:
@@ -379,7 +416,7 @@ def yesno_classification(new_page_loaded, messages, substep, intent):
     if classification.lower() == "yes":
         return {
             "intent": intent,
-            "botMessage": "Great! Please click the highlighted button",
+            "botMessage": "Great! Please click the highlighted button in yellow.",
             "selector": substep["selector"]
         }
     elif classification.lower() == "no":
@@ -393,17 +430,58 @@ def yesno_classification(new_page_loaded, messages, substep, intent):
             "botMessage": "Sorry, could you please clarify? Do you want to download your statement?"
         }
     
+def classification_handler(substep, messages):
+    print("====Classification handler called")
+    options = substep.get("options", {})
+    if not options:
+        raise ValueError("Substep is missing 'options' for classification.")
+
+    label_list = "', '".join(options.keys())
+    print(f"Classifying intent with options: {label_list}")
+    classification_prompt = CLASSIFICATION_DECISION_PROMPT.format(label_list=label_list)
+
+    print(f"Running classification with prompt:\n{classification_prompt}")
+    result = api_call(classification_prompt, messages).strip().lower()
+
+    if result == "clarification_required":
+        clarification_prompt = CLARIFICATION_PROMPT.format(label_list=label_list)
+        print(f"Intent unclear. Asking clarification with prompt:\n{clarification_prompt}")
+        clarification_question = api_call(clarification_prompt, messages)
+
+        return {
+            "selector": "",
+            "botMessage": clarification_question,
+        }
+
+    # If intent is matched
+    for key in options:
+        if result == key.lower():
+            option = options[key]
+            return {
+                "selector": option["selector"],
+                "botMessage": f"Please click the button highlited in yellow."
+            }
+    print(f"No match found for classification result: {result}")
+    # No match and not clarification_required
+    return {
+        "selector": "",
+        "botMessage": "Sorry, I couldn’t understand. Can you tell me what you want to do?"
+    }
+
+    
 def handle_first_incomplete_substep(substeps, substep_flags, messages, intent, new_page_loaded):
     # Check the completion conditions of each substep
     # and handle the first uncompleted substep
     print("====Handling first incomplete substep...")
     print("====substep_flags:", substep_flags)
     for _, substep in substeps.items():
-        condition = substep.get("completion_condition") # e.g., "account_chosen"
-        if not substep_flags.get(condition): # substep_flags looks like this: {"account_chosen": True} => {"account_chosen": True, "amount_entered": False}
+        condition = substep.get("completion_condition", "") # e.g., "account_chosen"
+        print("Checking condition:", condition)
+        if not substep_flags.get(condition, ""): # substep_flags looks like this: {"account_chosen": True} => {"account_chosen": True, "amount_entered": False}
             handler_type = substep.get("dynamic_handler", "")
+            print("Dynamic handler type:", handler_type)
             if not handler_type:
-                print("====No dynamic handler for current step, sending instruction directly...")
+                print("No dynamic handler for current step, sending instruction directly...")
                 return {
                     "intent": intent,
                     "selector": substep.get("selector", ""),
@@ -411,7 +489,9 @@ def handle_first_incomplete_substep(substeps, substep_flags, messages, intent, n
                     "substep_flags": substep_flags
                 }
             elif handler_type == "yesno_handler":
-                return yesno_classification(new_page_loaded, messages, substep, intent)
+                return yesno_classification_handler(new_page_loaded, messages, substep, intent)
+            elif handler_type == "classification_handler":
+                return classification_handler(substep, messages)
             
 def handle_known_intent(intent, current_page, substep_flags, messages, new_page_loaded, assistant="grace"):
     if intent in flows and current_page in flows[intent][assistant]:
@@ -621,7 +701,7 @@ async def chat(request: Request):
         intent = api_call(INTENT_PROMPT, messages)
         if intent == "clarification_required":
             print("====Intent unclear, asking for clarification...")
-            follow_up = api_call(CLARIFICATION_PROMPT, messages)
+            follow_up = api_call(INTENT_CLARIFICATION_PROMPT, messages)
             return {
                 "intent": "unknown",
                 "selector": "",
@@ -657,7 +737,7 @@ async def chat(request: Request):
         intent = api_call(INTENT_PROMPT, messages)
         if intent == "clarification_required":
             print("====Intent unclear, asking for clarification...")
-            follow_up = api_call(CLARIFICATION_PROMPT, messages)
+            follow_up = api_call(INTENT_CLARIFICATION_PROMPT, messages)
             return {
                 "intent": "unknown",
                 "selector": "",
