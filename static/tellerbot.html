@@ -300,11 +300,9 @@
   
       const data = await res.json();
       console.log("data from backend", data)
-      // console.log("flags", data.substep_flags);
 
       intent = data.intent || intent ; // Use the intent from the response or keep the current one
-      // selector = data.selector || null;
-      botMessage = data.botMessage || "Hmmm not sure if I understand. Please tell me your goal.";
+      botMessage = data.botMessage || "";
       
       appendMessage("assistant", botMessage);
       chatHistory.push({ role: "assistant", content: botMessage });
@@ -313,10 +311,7 @@
       if (intent && intent !== "unknown") {
         sessionStorage.setItem("intent", intent);
       }
-      // if (selector) {
-      //   sessionStorage.setItem("selector", selector);
-      //   highlight(selector);
-      // }
+
       if (data.state) {
         state = data.state;
         sessionStorage.setItem("state", JSON.stringify(state));
@@ -335,6 +330,12 @@
             setTimeout(() => {
               performAction(act.selector, act.action, act.value);
             }, waitToTakeAction);
+          }
+
+          if (act.immediate_reply) {
+            appendMessage("assistant", act.immediate_reply);
+            chatHistory.push({ role: "assistant", content: act.immediate_reply });
+            sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
           }
         });
       }
