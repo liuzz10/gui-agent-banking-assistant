@@ -322,11 +322,24 @@ e_transfer_teller = OrderedDict({
     },
     "etransfer.html": {
         "substeps": OrderedDict({
-            "recipient_selection": {
-                "prompt": CHECK_TRANSFEREE_PROMPT_FRANK,
+            "select_recipient": {
                 "desc": "Selected the recipient",
-                "dynamic_handler": "recipient_selection",
-                "action": [{"action": "click", "selector": "#contact-bob"}]  # Frank will click the recipient for the user
+                "immediate_reply": "Who would you like to send money to?",
+                "dynamic_handler": "classification_handler",
+                "prompt": "The user is on the page of selecting a recipient of a potential eTransfer. There are 3 users on the page. Your goal is to guide the user through selecting the intended recipient.",
+                "options": {
+                    "Bob Chen": {
+                        "action": [{"action": "highlight", "selector": "#contact-bob", "immediate_reply": "Can you confirm that you're sending money to Bob Chen?"}]
+                    },
+                    "Sophia Smith": {},
+                    "David Kim": {}
+                },
+                "completion_condition": "select_recipient",  # flag name
+            },
+            "confirm_recipient": {
+                "dynamic_handler": "confirmation_handler",
+                "action": [{"action": "click", "selector": "#contact-bob", "immediate_reply": "Thank you for confirming. I'm selecting Bob Chen for you."}],  # You can generate this dynamically too
+                "completion_condition": "confirm_recipient"
             }
         })
     },
@@ -633,17 +646,18 @@ def yesno_classification_handler(new_page_loaded, messages, substep, intent):
     classification = api_call(YESNO_CLASSIFIER_PROMPT, messages)
     print("Classification result:", classification)
     print("Substep:", substep)
+
     if classification.lower() == "yes":
         return {
             "intent": intent,
-            # "botMessage": "Great! Please click the highlighted button in yellow.",
-            # "selector": substep["selector"]
             "action": substep["options"]["yes"]["action"],
+            "substep_flags": {substep.get("completion_condition"): True}
         }
     elif classification.lower() == "no":
         return {
             "intent": intent,
             "action": substep["options"]["no"]["action"],
+            "substep_flags": {substep.get("completion_condition"): True}
         }
     else:
         return {
@@ -652,8 +666,17 @@ def yesno_classification_handler(new_page_loaded, messages, substep, intent):
         }
 
 # Grace - Alex
-def classification_handler(substep, messages, intent):
+def classification_handler(substep, messages, intent, new_page_loaded=False):
     print("====Classification handler called")
+    # 1. Ask the yes/no question if newPageLoaded
+    print("substep", substep)
+    if new_page_loaded:
+        print("New page loaded, asking yes/no question...")
+        return {
+            "intent": intent,
+            "botMessage": substep["immediate_reply"]
+        }
+
     options = substep.get("options", {})
     if not options:
         raise ValueError("Substep is missing 'options' for classification.")
@@ -661,6 +684,8 @@ def classification_handler(substep, messages, intent):
     label_list = "', '".join(options.keys())
     print(f"Classifying what user wants with options: {label_list}")
     classification_prompt = CLASSIFICATION_DECISION_PROMPT.format(label_list=label_list)
+    if substep.get("prompt"):
+        classification_prompt += "\n\n" + substep["prompt"]
 
     result = api_call(classification_prompt, messages).strip().lower()
 
@@ -681,6 +706,7 @@ def classification_handler(substep, messages, intent):
             return {
                 "intent": intent,
                 "action": option.get("action", []),  # e.g., [{"action": "click", "selector": "#view_checking_activity"}]
+                "substep_flags": {substep.get("completion_condition"): True}
             }
     print(f"No match found for classification result: {result}")
     # No match and not clarification_required
@@ -690,16 +716,67 @@ def classification_handler(substep, messages, intent):
         "botMessage": "Sorry, I couldn’t understand. Can you tell me what you want to do?"
     }
 
+def confirmation_handler(substep, messages, intent) -> str:
+    """
+    Uses GPT to classify a user response as 'yes', 'no', or 'unclear'.
+
+    Parameters:
+        user_message (str): The user's message to interpret.
+        action_description (str): A simple description of what is being confirmed. E.g., "send money to Bob Chen"
+
+    Returns:
+        One of: "yes", "no", "unclear"
+    """
+    print("====Confirmation handler called")
+    action_description = substep.get("confirmation_text", "proceed with this action")
+    user_message = messages[-1]["content"] if messages else ""
+    prompt = f"""
+You are a confirmation assistant helping to interpret whether a user agrees to perform an action.
+
+The action in question is: {action_description}
+
+User message: "{user_message}"
+
+Does the user confirm the action?
+
+Respond with exactly one word:
+- yes
+- no
+- unclear
+
+Do NOT explain or include any other text.
+""".strip()
+
+    result = api_call(prompt, [])
+    if result == "yes":
+        return {
+            "intent": intent,
+            "action": substep.get("action", []),
+            "substep_flags": {substep.get("completion_condition"): True}
+        }
+    elif result == "no":
+        return {
+            "intent": intent,
+            "botMessage": "Okay, let me know what you'd like to do instead."
+        }
+    else:
+        return {
+            "intent": intent,
+            "botMessage": "Sorry, I couldn’t understand your response. Could you please confirm?"
+        }
+
+
 # Grace - Alex
 def handle_first_incomplete_substep(substeps, substep_flags, messages, intent, new_page_loaded, state={}):
     # Check the completion conditions of each substep
     # and handle the first uncompleted substep
     print("====Handling first incomplete substep...")
     print("====substep_flags:", substep_flags)
-    for _, substep in substeps.items():
+    for name, substep in substeps.items():
         condition = substep.get("completion_condition", "") # e.g., "account_chosen"
         print("Checking condition:", condition)
         if not substep_flags.get(condition, ""): # substep_flags looks like this: {"account_chosen": True} => {"account_chosen": True, "amount_entered": False}
+            print("Found first incomplete substep:", name)
             handler_type = substep.get("dynamic_handler", "")
             print("Dynamic handler type:", handler_type)
             # Need to return intent for every handler condition
@@ -708,45 +785,15 @@ def handle_first_incomplete_substep(substeps, substep_flags, messages, intent, n
                 return {
                     "intent": intent,
                     "botMessage": substep.get("immediate_reply", ""),
-                    "substep_flags": substep_flags,
-                    "action": substep.get("action", "")
+                    "substep_flags": {substep.get("completion_condition"): True},
+                    "action": substep.get("action", ""),
                 }
             elif handler_type == "yesno_handler":
                 return yesno_classification_handler(new_page_loaded, messages, substep, intent)
             elif handler_type == "classification_handler":
-                return classification_handler(substep, messages, intent)
-            
-            # For Frank - Sam only - need to refactor
-            elif handler_type == "recipient_selection":
-                clarification = api_call(substep["prompt"], messages)
-
-                # Extract recipient from a line like "Recipient: Bob Chen"
-                recipient_name = ""
-                for line in clarification.splitlines():
-                    if line.lower().startswith("recipient:"):
-                        recipient_name = line.split(":", 1)[1].strip()
-                        break
-                print("Extracted recipient name:", recipient_name)
-                selector = "#contact-bob" if "bob" in recipient_name.lower() else ""
-                print("Recipient selector:", selector)
-                if selector:
-                    # Extract the first sentence (before newline or period)
-                    first_sentence = clarification.splitlines()[0].strip()
-                    return {
-                        "intent": intent,
-                        "botMessage": first_sentence,
-                        # "selector": selector,
-                        "action": substep.get("action", "")
-                    }
-                else:
-                    # Couldn't match recipient – fallback to full response
-                    return {
-                        "intent": intent,
-                        "botMessage": clarification,
-                        "selector": "",
-                        "action": ""
-                    }
-
+                return classification_handler(substep, messages, intent, new_page_loaded)
+            elif handler_type == "confirmation_handler":
+                return confirmation_handler(substep, messages, intent)
             elif handler_type == "collect_then_act":
                 print("Current state:", state)
                 # Step 1: Initial guidance message if state is empty
@@ -786,7 +833,6 @@ def handle_first_incomplete_substep(substeps, substep_flags, messages, intent, n
                     if state.get("confirmed"):
                         return {
                             "intent": intent,
-                            "botMessage": "I'm clicking 'Continue' for you.",
                             "action": substep.get("action", "")
                         }
                     else:
@@ -795,7 +841,6 @@ def handle_first_incomplete_substep(substeps, substep_flags, messages, intent, n
                 else:
                     return {
                         "intent": intent,
-                        "botMessage": "I'm clicking 'Continue' for you.",
                         "action": substep.get("action", "")
                     }
 

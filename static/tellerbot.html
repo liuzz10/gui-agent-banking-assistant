@@ -267,8 +267,9 @@
       const input = document.getElementById("chat-input");
       const message = newPageLoaded ? "resuming" : (overrideTranscript ? overrideTranscript : input.value.trim()); // Get user input or use overrideMessage if auto is true.
       if (!message && !newPageLoaded) return; // Don't send empty messages unless the page just loaded.
-      
-      let substep_flags = {};
+
+      substep_flags = JSON.parse(sessionStorage.getItem("substep_flags") || "{}");
+      console.log("substep_flags:", substep_flags); 
 
       // This is used to track the user's progress in the transfer process.
       if (currentPage === "send_to_alex.html") {
@@ -316,6 +317,11 @@
         state = data.state;
         sessionStorage.setItem("state", JSON.stringify(state));
       }
+
+      if (data.substep_flags) {
+        substep_flags = data.substep_flags;
+        sessionStorage.setItem("substep_flags", JSON.stringify(substep_flags));
+      }  
 
       // FRANK UNIQUE PART: This checks if the backend returned actions (like "fill", "click", or "select")
       // and sends them to the main page after a short delay.
