@@ -1,11 +1,19 @@
-# In your terminal:
+# In your terminal, type commands:
 cd banking-agent-local
 python -m venv venv
 source venv/bin/activate
 (pip install -r requirements.txt)
 uvicorn main:app --reload
 
-# Authentication errors from:
+# To switch between Alex (tutor) and Sam (teller):
+1. For EVERY .html file (including those in /etransfer, /pay_bill, /statement), comment out one <iframe>
+For example, to enable tutorbot Alex:
+<iframe src="../tutorbot.html" class="chatbot-frame"></iframe>
+<!-- <iframe src="../tellerbot.html" class="chatbot-frame"></iframe> -->
+
+2. Precheck every page in that task and make sure the bot is the correct one. If not, command+shift+R to refresh and clean the cache.
+
+# Authentication errors may from the following sources:
 * Endpoint are the shorter one
 * double check deployment_name
 * load_dotenv(override=True)

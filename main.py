@@ -241,14 +241,14 @@ CLARIFICATION_PROMPT = (
     "that will help determine whether the user wants to: {label_list}."
 )
 
-
+# Grace - Alex
 e_transfer_tutor = OrderedDict({
     "index.html": {
         "substeps": OrderedDict({
             "click_etransfer": {
                 "immediate_reply": "Click the 'e-Transfer' button on the top right of the page",
-                "selector": "#nav-transfer",
                 "prompt": CLICK_ETRANSFER_BTN_PROMPT,
+                "action": [{"action": "highlight", "selector": "#nav-transfer"}],  # Grace will highlight the button for the user
                 "desc": "Clicked the 'E-transfer' tab"
             }
         })
@@ -257,41 +257,40 @@ e_transfer_tutor = OrderedDict({
         "substeps": OrderedDict({
             "select_recipient": {
                 "immediate_reply": "Please select the recipient you want to transfer money to.",
-                "selector": "",
+                "action": [],
                 "prompt": CHECK_TRANSFEREE_PROMPT,
                 "desc": "Selected the recipient"
             }
         })
     },
     "send_to_alex.html": {
-        # "prompt": ENTER_AMOUNT_PROMPT,  # Optional: keep general one
         "substeps": OrderedDict({
             "choose_account": {
-                "selector": "#from-account",
                 "immediate_reply": "Please choose the account you want to transfer from.",
+                "action": [{"action": "highlight", "selector": "#from-account"}],  # Grace will highlight the account selector for the user
                 "completion_condition": "account_chosen",  # flag name
                 "desc": "Selected the account to transfer from"
             },
             "enter_amount": {
-                "selector": "#amount",
                 "immediate_reply": "Now enter the amount.",
+                "action": [{"action": "highlight", "selector": "#amount"}],  # Grace will highlight the amount input for the user
                 "completion_condition": "amount_entered",
                 "desc": "Entered the amount to transfer"
             },
             "continue": {
-                "selector": "#send-button",
                 "immediate_reply": "Now click 'Continue'.",
+                "action": [{"action": "highlight", "selector": "#send-button"}],  # Grace will highlight the continue button for the user
                 "completion_condition": "continue_clicked",
                 "desc": "Clicked 'Continue'"
             },
         }),
-        # "desc": "Filled in information and clicked 'Continue'"
     },
     "confirm_transfer.html": {
         "substeps": OrderedDict({
             "confirm_transfer": {
                 "immediate_reply": "Please double-check the information and click 'Confirm' to complete the transfer, or 'Cancel' if you want to stop.",
                 "selector": "#confirm-button, #cancel-button",
+                "action": [{"action": "highlight", "selector": "#confirm-button, #cancel-button"}],  # Grace will highlight the confirm and cancel buttons for the user
                 "prompt": CONFIRM_TRANSFER_PROMPT,
                 "desc": "Clicked 'Confirm'"
             }
@@ -299,7 +298,7 @@ e_transfer_tutor = OrderedDict({
     },
     "success.html": {
         "substeps": OrderedDict({
-            "success": {
+            "success_message": {
                 "immediate_reply": "Anything else I can help you with?",
                 "selector": "",
                 "prompt": "The user has successfully completed the transfer. Ask if they have more questions or click 'Home' to return to the homepage. Do not exceed 50 characters.",
@@ -377,6 +376,7 @@ e_transfer_teller = OrderedDict({
     }
 })
 
+# Grace - Alex
 check_activity_tutor = OrderedDict({
     "index.html": {
         "substeps": OrderedDict({

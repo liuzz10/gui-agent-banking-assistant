@@ -34,30 +34,25 @@
     const waitToTakeAction = 5000;
     const currentPage = window.parent.location.pathname.split("/").pop();
 
-    // const originalPostMessage = window.parent.postMessage;
-    // window.parent.postMessage = function(message, targetOrigin, transfer) {
-    //   console.trace("[Iframe postMessage] Message sent:", message);
-    //   return originalPostMessage.call(this, message, targetOrigin, transfer);
-    // };
+    // FRANK UNIQUE FUNCTION: Perform an action on the parent page
+    function performAction(selector, action, value = null) {
+        console.log("Sending action:", { selector, action, value });
+        window.parent.postMessage({ selector, instruction: action, value }, "*");
+    }
 
     // Function to get the summary of the last user message based on the current page
     // This function is called when the chatbot detects a confirmation or success page.
     function getSummary() {
       console.log("getSummary called for page:", currentPage);
-
       const patterns = {
         "confirm_transfer.html": { match: "You plan to send", emoji: /^✅\s*/ },
         "success.html": { match: "You successfully transfered", emoji: /^🎉\s*/ }
       };
-
       const pattern = patterns[currentPage];
       if (!pattern) {
         console.log("No pattern defined for this page.");
         return "";
       }
-
-      console.log("Using pattern:", pattern);
-
       // Look for the last user message that matches
       for (let i = chatHistory.length - 1; i >= 0; i--) {
         const m = chatHistory[i];
@@ -68,7 +63,6 @@
           return cleanedText;
         }
       }
-
       console.log("No matching message found.");
       return "";
     }
@@ -127,13 +121,6 @@
       activeHighlights.clear();
     }
 
-
-    // FRANK UNIQUE FUNCTION: Perform an action on the parent page
-    function performAction(selector, action, value = null) {
-        console.log("Sending action:", { selector, action, value });
-        window.parent.postMessage({ selector, instruction: action, value }, "*");
-    }
-
     // Log user action to the chat history and sessionStorage
     function logUserAction(text) {
       appendMessage("user", text);
@@ -178,8 +165,7 @@
         sessionStorage.setItem("listening", "true");
 
         // Show first assistant message
-        // const welcomeMessage = "Hi! I'm Sam. Tell me what you want to do, for example, e-transfer, and I'll take care of it.";
-        const welcomeMessage = "What's your goal";
+        const welcomeMessage = "Hi! I'm Sam. Tell me what you want to do, for example, e-transfer, and I'll take care of it.";
         appendMessage("assistant", welcomeMessage);
 
         // ✅ Only resume if intent already exists
@@ -255,9 +241,6 @@
 
       speechSynthesis.speak(utterance);
     }
-
-
-
   
     // sendMessage() fires when: 
     // 1) The user types a message (e.g., "what's next?") 
@@ -307,8 +290,8 @@
       
       appendMessage("assistant", botMessage);
       chatHistory.push({ role: "assistant", content: botMessage });
-
       sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+      
       if (intent && intent !== "unknown") {
         sessionStorage.setItem("intent", intent);
       }
@@ -323,11 +306,10 @@
         sessionStorage.setItem("substep_flags", JSON.stringify(substep_flags));
       }  
 
-      // FRANK UNIQUE PART: This checks if the backend returned actions (like "fill", "click", or "select")
+      // This checks if the backend returned actions (like "fill", "click", or "select")
       // and sends them to the main page after a short delay.
       // Dehighlight anything from the last step
       dehighlightAll();
-
       if (Array.isArray(data.action)) {
         data.action.forEach(act => {
           if (act.selector && act.action) {
@@ -396,10 +378,8 @@
       //   sendMessage(newPageLoaded = true);
       // }
 
-      // if (window.parent.location.pathname.endsWith("send_to_alex.html")) {
-      //   const parentDoc = window.parent.document;
-      //   console.log("parentDoc", parentDoc);
-
+      // If the current page is "send_to_alex.html", set up event listeners for the parent form fields
+      // This is to ensure that the chatbot can update the substep flags when the elements got selects
       if (window.parent.location.pathname.endsWith("send_to_alex.html")) {
         const parentDoc = window.parent.document;
 

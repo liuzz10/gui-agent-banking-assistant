@@ -31,26 +31,23 @@
     let intent = null;
     let lastSelector = null;
     let botMessage = null;
+    let state = JSON.parse(sessionStorage.getItem("state") || "null");
+    const waitToTakeAction = 5000;
     const currentPage = window.parent.location.pathname.split("/").pop();
 
     // Function to get the summary of the last user message based on the current page
     // This function is called when the chatbot detects a confirmation or success page.
     function getSummary() {
       console.log("getSummary called for page:", currentPage);
-
       const patterns = {
         "confirm_transfer.html": { match: "You plan to send", emoji: /^✅\s*/ },
         "success.html": { match: "You successfully transfered", emoji: /^🎉\s*/ }
       };
-
       const pattern = patterns[currentPage];
       if (!pattern) {
         console.log("No pattern defined for this page.");
         return "";
       }
-
-      console.log("Using pattern:", pattern);
-
       // Look for the last user message that matches
       for (let i = chatHistory.length - 1; i >= 0; i--) {
         const m = chatHistory[i];
@@ -61,7 +58,6 @@
           return cleanedText;
         }
       }
-
       console.log("No matching message found.");
       return "";
     }
@@ -99,20 +95,25 @@
   
     // Highlight the element in the parent window
     // This function is called when the chatbot receives a selector from the backend
+    let activeHighlights = new Set();
+
     function highlight(selector, lastInstruction = "mark-complete") {
       if (!selector) return;
-      console.log("lastSelector and selector", lastSelector, selector);
 
-      // Dehighlight the previous selector if it's different
-      if (lastSelector && lastSelector !== selector) {
-        console.log("dehighlighting in chatbot", lastSelector);
-        window.parent.postMessage({selector: lastSelector, instruction: lastInstruction}, "*");
+      // Avoid re-highlighting the same selector
+      if (!activeHighlights.has(selector)) {
+        console.log("Highlighting:", selector);
+        window.parent.postMessage({ selector, instruction: "highlight" }, "*");
+        activeHighlights.add(selector);
       }
+    }
 
-      console.log("[Chatbot] Sending highlight to parent:", selector);
-      // Highlight the new selector
-      window.parent.postMessage({selector, instruction: "highlight"}, "*");
-      lastSelector = selector; // Update the last selector
+    function dehighlightAll(lastInstruction = "mark-complete") {
+      activeHighlights.forEach(selector => {
+        console.log("Dehighlighting:", selector);
+        window.parent.postMessage({ selector, instruction: lastInstruction }, "*");
+      });
+      activeHighlights.clear();
     }
     
     // Log user action to the chat history and sessionStorage
@@ -159,7 +160,7 @@
         sessionStorage.setItem("listening", "true");
 
         // Show first assistant message
-        const welcomeMessage = "Hi! I'm Grace. What do you want to complete today?";
+        const welcomeMessage = "Hi! I'm Alex. What do you want to complete today?";
         appendMessage("assistant", welcomeMessage);
 
         // ✅ Only resume if intent already exists
@@ -287,7 +288,9 @@
       const message = newPageLoaded ? "resuming" : (overrideTranscript ? overrideTranscript : input.value.trim()); // Get user input or use overrideMessage if auto is true.
       if (!message && !newPageLoaded) return; // Don't send empty messages unless the page just loaded.
       
-      let substep_flags = {};
+      substep_flags = JSON.parse(sessionStorage.getItem("substep_flags") || "{}");
+      console.log("substep_flags:", substep_flags); 
+
       if (currentPage === "send_to_alex.html") {
         substep_flags = updateSubstepFlagsForTransferSomeone();
       }
@@ -319,21 +322,41 @@
       // console.log("flags", data.substep_flags);
 
       intent = data.intent
-      selector = data.selector || null;
       botMessage = data.botMessage || "Hmmm not sure if I understand. Please tell me what you want to do.";
       
       appendMessage("assistant", botMessage);
       chatHistory.push({ role: "assistant", content: botMessage });
       sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
-  
+
       if (intent && intent !== "unknown") {
         sessionStorage.setItem("intent", intent);
       }
-      
-      if (selector) {
-        console.log("Highlighting selector:", selector);
-        sessionStorage.setItem("selector", selector);
-        highlight(selector);
+
+      if (data.substep_flags) {
+        substep_flags = data.substep_flags;
+        sessionStorage.setItem("substep_flags", JSON.stringify(substep_flags));
+      }  
+
+      // This checks if the backend returned actions (like "fill", "click", or "select")
+      // and sends them to the main page after a short delay.
+      // Dehighlight anything from the last step
+      dehighlightAll();
+      if (Array.isArray(data.action)) {
+        data.action.forEach(act => {
+          if (act.selector && act.action) {
+            highlight(act.selector); // highlight immediately
+
+            setTimeout(() => {
+              performAction(act.selector, act.action, act.value);
+            }, waitToTakeAction);
+          }
+
+          if (act.immediate_reply) {
+            appendMessage("assistant", act.immediate_reply);
+            chatHistory.push({ role: "assistant", content: act.immediate_reply });
+            sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+          }
+        });
       }
     }
   
@@ -350,31 +373,28 @@
 
       // Restore listening state to show the listening checkbox and status consistently
       const storedListening = sessionStorage.getItem("listening");
-      if (storedListening === "true") {
-        listening = true;
-        document.getElementById("listen-checkbox").checked = true;
-        document.getElementById("listening-status").textContent = "Active";
-        if (recognition) recognition.start();
-        // ✅ Resume the conversation automatically if listening is active and intent exists
-        if (listening && intent) {
-          console.log("Auto-resuming on new page");
-          sendMessage(newPageLoaded = true);
-        }
-      } else if (storedListening === "false") {
-        listening = false;
-        document.getElementById("listen-checkbox").checked = false;
-        document.getElementById("listening-status").textContent = "Inactive";
-      } else {
-        listening = false;
-        document.getElementById("listen-checkbox").checked = false;
-        document.getElementById("listening-status").textContent = "Inactive";
+      listening = storedListening === "true";
+
+      document.getElementById("listen-checkbox").checked = listening;
+      document.getElementById("listening-status").textContent = listening ? "Active" : "Inactive";
+
+      if (listening && recognition) {
+        recognition.start();
+      }
+
+      if (intent) {
+        console.log("Calling sendMessage: Auto-resuming on new page");
+        sendMessage(true);  // ✅ Clean, unified resume
       }
 
       // Restore chatbox and history
       for (const m of chatHistory) appendMessage(m.role, m.content, suppressTTS=true); // Re-render chat history
       const input = document.getElementById("chat-input");
       input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") sendMessage();
+        if (e.key === "Enter") {
+          console.log("Calling sendMessage on Enter key");
+          sendMessage();
+        }
       });
 
       // Comment this out to disable auto-resume on page load
@@ -389,15 +409,16 @@
       //   sendMessage(newPageLoaded = true);
       // }
 
-      if (intent) {
+      // if (intent) {
+      //   // Figure out the step based on intent + page
+      //   // This logic is only run when the chatbot is first loaded, not on every message sent.
+      //   // This is to ensure that the chatbot can resume the conversation from the correct step.
+      //   console.log("calling sendMessage for resuming")
+      //   sendMessage(newPageLoaded = true);
+      // }
 
-        // Figure out the step based on intent + page
-        // This logic is only run when the chatbot is first loaded, not on every message sent.
-        // This is to ensure that the chatbot can resume the conversation from the correct step.
-        console.log("calling sendMessage for resuming")
-        sendMessage(newPageLoaded = true);
-      }
-
+      // If the current page is "send_to_alex.html", set up event listeners for the parent form fields
+      // This is to ensure that the chatbot can update the substep flags when the user selects
       if (window.parent.location.pathname.endsWith("send_to_alex.html")) {
         const parentDoc = window.parent.document;
         console.log("parentDoc", parentDoc);
@@ -480,15 +501,6 @@
         alert("Speech recognition is not supported in this browser.");
       }
     }
-
-    window.addEventListener("message", (event) => {
-      if (event.data.instruction === "requestAssistant") {
-        const assistant = "grace"; // or make dynamic later
-        sessionStorage.setItem("assistant", assistant); // For next page
-        console.log("Requesting assistant from parent window — sending:", assistant);
-        window.parent.postMessage({ instruction: "sendAssistant", assistant }, "*");
-      }
-    });
   </script>
 </body>
 </html>
