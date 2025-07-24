@@ -6,7 +6,7 @@ let state = JSON.parse(sessionStorage.getItem("state") || "null");
 const waitToTakeAction = 5000;
 const currentPage = window.parent.location.pathname.split("/").pop();
 
-// This function sets the chat UI to be collapsed or expanded based on the isCollapsed parameter.
+// This function sets the chat UI to be collapsed or expanded based on the isCollapsed parameter. (for the ease of voice control)
 function setChatCollapsed(isCollapsed) {
   const root = document.getElementById("chatbot-root");
   const collapseBtn = document.getElementById("collapse-btn");
@@ -14,37 +14,34 @@ function setChatCollapsed(isCollapsed) {
   if (isCollapsed) {
     root.classList.add("chatbot-collapsed");
     collapseBtn.textContent = "▲";
+    sessionStorage.setItem("chatbotCollapsed", "true");   // ✅ Save to sessionStorage
   } else {
     root.classList.remove("chatbot-collapsed");
     collapseBtn.textContent = "▼";
+    sessionStorage.setItem("chatbotCollapsed", "false");  // ✅ Save to sessionStorage
   }
 }
 
-// Set up the chat collapse functionality (user clicks the collapse button to toggle the chat UI)
+// To set it up when page loaded (user clicks the collapse button to toggle the chat UI)
 function setupChatCollapse() {
-    console.log("Setting up chat collapse functionality");
-    const root = document.getElementById("chatbot-root");
-    const collapseBtn = document.getElementById("collapse-btn");
+  console.log("Setting up chat collapse functionality");
+  const collapseBtn = document.getElementById("collapse-btn");
 
-    let isCollapsed = root.classList.contains("chatbot-collapsed");
+  // ✅ Default to collapsed if no value stored yet
+  let stored = sessionStorage.getItem("chatbotCollapsed");
 
-    // Only set button state — do NOT forcibly add/remove classes here
-    collapseBtn.textContent = isCollapsed ? "▲" : "▼";
+  // If there's no stored value, default to true (collapsed)
+  let isCollapsed = stored === null ? true : stored === "true";
 
-    collapseBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      isCollapsed = !isCollapsed;
+  // Apply visual + store
+  setChatCollapsed(isCollapsed);
 
-      if (isCollapsed) {
-        root.classList.add("chatbot-collapsed");
-        collapseBtn.textContent = "▲";
-        console.log("Chatbot collapsed");
-      } else {
-        root.classList.remove("chatbot-collapsed");
-        collapseBtn.textContent = "▼";
-        console.log("Chatbot expanded");
-      }
-    });
+  // Toggle on click
+  collapseBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    isCollapsed = !isCollapsed;
+    setChatCollapsed(isCollapsed);
+  });
 }
 
 // This function toggles the listening state of the chatbot.
@@ -378,7 +375,7 @@ async function sendMessage(newPageLoaded = false, substepUpdated = false, overri
 window.addEventListener("DOMContentLoaded", () => {
     // Activate collapse logic
     setupChatCollapse(); 
-    
+
     // Let parent know which assistant
     console.log("Sending assistant to parent: grace");
     window.parent.postMessage({ instruction: "sendAssistant", assistant: "grace" }, "*");
