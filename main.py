@@ -387,11 +387,11 @@ check_activity_tutor = OrderedDict({
                 "desc": "User selects account type to view activity for",
                 "options": {
                     "chequing_account": {
-                        "selector": "#view_checking_activity",
+                        "action": [{"action": "highlight", "selector": "#view_checking_activity", "immediate_reply": "Click the 'View Activity' button highlighted in yellow."}],  # Grace will highlight the button for the user
                         "desc": "Clicked 'View Activity' for Chequing"
                     },
                     "savings_account": {
-                        "selector": "#view_saving_activity",
+                        "action": [{"action": "highlight", "selector": "#view_saving_activity", "immediate_reply": "Click the 'View Activity' button highlighted in yellow."}],  # Grace will highlight the button for the user
                         "desc": "Clicked 'View Activity' for Savings"
                     }
                 }
@@ -401,11 +401,18 @@ check_activity_tutor = OrderedDict({
     "chequing_activity.html": {
         "substeps": OrderedDict({
             "download_chequing_statement": {
-                "completion_condition": "chequing_statement_downloaded",
-                "prompt": "Ask the user if they'd like to download the chequing statement. If they say yes, highlight the download button.",
+                "completion_condition": "download_chequing_statement",
+                "immediate_reply": "Here's your chequing account activity. Would you like to download the statement?",
+                # "prompt": "Ask the user if they'd like to download the chequing statement. If they say yes, tell them that you're clicking the download button for them.",
                 "dynamic_handler": "yesno_handler",
-                "selector": "#chequing-statement-download",
-                "immediate_reply": "Here's your chequing account activity. Would you like to download the statement for your chequing account?",
+                "options": {
+                    "yes": {
+                        "action": [{"action": "highlight", "selector": "#chequing-statement-download", "immediate_reply": "Click 'Download Statement' highlighted in yellow."}]
+                    },
+                    "no": {
+                        "action": [{"action": "", "selector": "", "immediate_reply": "No problem. Let me know if you need anything else."}]
+                    }
+                },
                 "desc": "Prompted user to download chequing statement"
             }
         })
@@ -413,11 +420,18 @@ check_activity_tutor = OrderedDict({
     "savings_activity.html": {
         "substeps": OrderedDict({
             "download_saving_statement": {
-                "completion_condition": "saving_statement_downloaded",
-                "prompt": "Ask the user if they'd like to download the savings statement. If they say yes, highlight the download button.",
+                "completion_condition": "download_saving_statement",
+                "immediate_reply": "Here's your savings account activity. Would you like to download the statement?",
+                # "prompt": "Ask the user if they'd like to download the chequing statement. If they say yes, tell them that you're clicking the download button for them.",
                 "dynamic_handler": "yesno_handler",
-                "selector": "#saving-statement-download",
-                "immediate_reply": "Here's your savings account activity. Would you like to download the statement for your savings account?",
+                "options": {
+                    "yes": {
+                        "action": [{"action": "highlight", "selector": "#saving-statement-download", "immediate_reply": "Click 'Download Statement' highlighted in yellow."}]
+                    },
+                    "no": {
+                        "action": [{"action": "", "selector": "", "immediate_reply": "No problem. Let me know if you need anything else."}]
+                    }
+                },
                 "desc": "Prompted user to download savings statement"
             }
         })
@@ -457,7 +471,7 @@ check_activity_teller = OrderedDict({
                 "dynamic_handler": "yesno_handler",
                 "options": {
                     "yes": {
-                        "action": [{"action": "click", "selector": "#chequing-statement-download", "immediate_reply": "Here's your chequing account activity. I'm clicking the download button for you."}]
+                        "action": [{"action": "click", "selector": "#chequing-statement-download", "immediate_reply": "I'm clicking the download button for you."}]
                     },
                     "no": {
                         "action": [{"action": "", "selector": "", "immediate_reply": "No problem. Let me know if you need anything else."}]

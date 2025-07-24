@@ -313,7 +313,7 @@
       if (Array.isArray(data.action)) {
         data.action.forEach(act => {
           if (act.selector && act.action) {
-            highlight(act.selector); // highlight immediately
+            highlight(act.selector); // highlight the action to take automatically
 
             setTimeout(() => {
               performAction(act.selector, act.action, act.value);
