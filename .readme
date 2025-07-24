@@ -1,9 +1,16 @@
-# In your terminal, type commands:
-cd banking-agent-local
-python -m venv venv
-source venv/bin/activate
-(pip install -r requirements.txt) - only need to run once
-uvicorn main:app --reload
+# Make sure your code is at the latest version:
+cd gui-agent-banking-assistant
+git pull origin main
+
+# Installation:
+cd gui-agent-banking-assistant         # Step into your project directory
+python -m venv venv                    # Create a virtual environment (only ONCE)
+source venv/bin/activate               # Activate the virtual environment
+pip install -r requirements.txt        # Install all dependencies (only ONCE, or after changes)
+
+# To run the server (every time you start working):
+source venv/bin/activate               # Activate the virtual environment (if not already)
+uvicorn main:app --reload              # Start the FastAPI server (auto-reloads on code changes) then go to 127.0.0.1:8000/static/index.html
 
 # To switch between Alex (tutor) and Sam (teller):
 1. For EVERY .html file (including those in /etransfer, /pay_bill, /statement), comment out one <iframe>
