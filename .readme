@@ -2,7 +2,7 @@
 cd banking-agent-local
 python -m venv venv
 source venv/bin/activate
-(pip install -r requirements.txt)
+(pip install -r requirements.txt) - only need to run once
 uvicorn main:app --reload
 
 # To switch between Alex (tutor) and Sam (teller):
@@ -10,8 +10,10 @@ uvicorn main:app --reload
 For example, to enable tutorbot Alex:
 <iframe src="../tutorbot.html" class="chatbot-frame"></iframe>
 <!-- <iframe src="../tellerbot.html" class="chatbot-frame"></iframe> -->
-
 2. Precheck every page in that task and make sure the bot is the correct one. If not, command+shift+R to refresh and clean the cache.
+
+# After finishing each task:
+Need to close the tab and reopen the page to reset the bot state.
 
 # Authentication errors may from the following sources:
 * Endpoint are the shorter one

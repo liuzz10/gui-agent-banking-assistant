@@ -471,7 +471,7 @@ check_activity_teller = OrderedDict({
                 "dynamic_handler": "yesno_handler",
                 "options": {
                     "yes": {
-                        "action": [{"action": "click", "selector": "#chequing-statement-download", "immediate_reply": "I'm clicking the download button for you."}]
+                        "action": [{"action": "click", "selector": "#chequing-statement-download", "immediate_reply": "I'm clicking 'Download Statement' for you. Your statement will be downloaded shortly."}]
                     },
                     "no": {
                         "action": [{"action": "", "selector": "", "immediate_reply": "No problem. Let me know if you need anything else."}]
@@ -484,11 +484,18 @@ check_activity_teller = OrderedDict({
     "savings_activity.html": {
         "substeps": OrderedDict({
             "download_saving_statement": {
-                "completion_condition": "saving_statement_downloaded",
-                "prompt": "Ask the user if they'd like to download the savings statement. If they say yes, highlight the download button.",
+                "completion_condition": "download_saving_statement",
+                "immediate_reply": "Here's your savings account activity. Would you like to download the statement?",
+                # "prompt": "Ask the user if they'd like to download the chequing statement. If they say yes, tell them that you're clicking the download button for them.",
                 "dynamic_handler": "yesno_handler",
-                "selector": "#saving-statement-download",
-                "immediate_reply": "Here's your savings account activity. Would you like to download the statement for your savings account?",
+                "options": {
+                    "yes": {
+                        "action": [{"action": "click", "selector": "#saving-statement-download", "immediate_reply": "I'm clicking 'Download Statement' for you. Your statement will be downloaded shortly."}]
+                    },
+                    "no": {
+                        "action": [{"action": "", "selector": "", "immediate_reply": "No problem. Let me know if you need anything else."}]
+                    }
+                },
                 "desc": "Prompted user to download savings statement"
             }
         })

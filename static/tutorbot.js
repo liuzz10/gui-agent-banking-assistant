@@ -2,8 +2,83 @@ let chatHistory = [];
 let intent = null;
 let lastSelector = null;
 let botMessage = null;
+let state = JSON.parse(sessionStorage.getItem("state") || "null");
 const waitToTakeAction = 5000;
 const currentPage = window.parent.location.pathname.split("/").pop();
+
+// This function sets the chat UI to be collapsed or expanded based on the isCollapsed parameter.
+function setChatCollapsed(isCollapsed) {
+  const root = document.getElementById("chatbot-root");
+  const collapseBtn = document.getElementById("collapse-btn");
+
+  if (isCollapsed) {
+    root.classList.add("chatbot-collapsed");
+    collapseBtn.textContent = "▲";
+  } else {
+    root.classList.remove("chatbot-collapsed");
+    collapseBtn.textContent = "▼";
+  }
+}
+
+// Set up the chat collapse functionality (user clicks the collapse button to toggle the chat UI)
+function setupChatCollapse() {
+    console.log("Setting up chat collapse functionality");
+    const root = document.getElementById("chatbot-root");
+    const collapseBtn = document.getElementById("collapse-btn");
+
+    let isCollapsed = root.classList.contains("chatbot-collapsed");
+
+    // Only set button state — do NOT forcibly add/remove classes here
+    collapseBtn.textContent = isCollapsed ? "▲" : "▼";
+
+    collapseBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      isCollapsed = !isCollapsed;
+
+      if (isCollapsed) {
+        root.classList.add("chatbot-collapsed");
+        collapseBtn.textContent = "▲";
+        console.log("Chatbot collapsed");
+      } else {
+        root.classList.remove("chatbot-collapsed");
+        collapseBtn.textContent = "▼";
+        console.log("Chatbot expanded");
+      }
+    });
+}
+
+// This function toggles the listening state of the chatbot.
+function toggleListening() {
+  const isChecked = document.getElementById("listen-checkbox").checked;
+  const statusLabel = document.getElementById("listening-status");
+
+  if (isChecked && !listening) {
+    recognition.start();
+    listening = true;
+    statusLabel.textContent = "Active";
+    sessionStorage.setItem("listening", "true");
+
+    // 👇 Expand chatbot when turned on
+    setChatCollapsed(false);
+
+    const welcomeMessage = "Hi! I'm Alex. Tell me what you want to do, for example, e-transfer, and I'll walk you through.";
+    appendMessage("assistant", welcomeMessage);
+
+    if (intent) {
+      console.log("Calling sendMessage for resuming");
+      sendMessage(true);
+    }
+
+  } else if (!isChecked && listening) {
+    recognition.stop();
+    listening = false;
+    statusLabel.textContent = "Inactive";
+    sessionStorage.setItem("listening", "false");
+
+    // 👇 Collapse chatbot when turned off
+    setChatCollapsed(true);
+  }
+}
 
 // Function to get the summary of the last user message based on the current page
 // This function is called when the chatbot detects a confirmation or success page.
@@ -119,33 +194,6 @@ function updateSubstepFlagsForTransferSomeone() {
     return substep_flags;
 }
 
-function toggleListening() {
-    const isChecked = document.getElementById("listen-checkbox").checked;
-    const statusLabel = document.getElementById("listening-status");
-
-    if (isChecked && !listening) {
-    recognition.start();
-    listening = true;
-    statusLabel.textContent = "Active";
-    sessionStorage.setItem("listening", "true");
-
-    // Show first assistant message
-    const welcomeMessage = "Hi! I'm Alex. What do you want to complete today?";
-    appendMessage("assistant", welcomeMessage);
-
-    // ✅ Only resume if intent already exists
-    if (intent) {
-        console.log("Calling sendMessage for resuming");
-        sendMessage(true);
-    }
-
-    } else if (!isChecked && listening) {
-    recognition.stop();
-    listening = false;
-    statusLabel.textContent = "Inactive";
-    sessionStorage.setItem("listening", "false");
-    }
-}
 
 
 // OPTION1: TTS function using server-side API
@@ -258,7 +306,7 @@ async function sendMessage(newPageLoaded = false, substepUpdated = false, overri
     const message = newPageLoaded ? "resuming" : (overrideTranscript ? overrideTranscript : input.value.trim()); // Get user input or use overrideMessage if auto is true.
     if (!message && !newPageLoaded) return; // Don't send empty messages unless the page just loaded.
     
-    let substep_flags = JSON.parse(sessionStorage.getItem("substep_flags") || "{}");
+    substep_flags = JSON.parse(sessionStorage.getItem("substep_flags") || "{}");
     console.log("substep_flags:", substep_flags); 
 
     if (currentPage === "send_to_alex.html") {
@@ -292,7 +340,7 @@ async function sendMessage(newPageLoaded = false, substepUpdated = false, overri
     // console.log("flags", data.substep_flags);
 
     intent = data.intent
-    botMessage = data.botMessage || "Hmmm not sure if I understand. Please tell me what you want to do.";
+    botMessage = data.botMessage || "";
     
     appendMessage("assistant", botMessage);
     chatHistory.push({ role: "assistant", content: botMessage });
@@ -315,10 +363,6 @@ async function sendMessage(newPageLoaded = false, substepUpdated = false, overri
     data.action.forEach(act => {
         if (act.selector && act.action) {
         highlight(act.selector); // highlight immediately
-
-        setTimeout(() => {
-            performAction(act.selector, act.action, act.value);
-        }, waitToTakeAction);
         }
 
         if (act.immediate_reply) {
@@ -332,6 +376,9 @@ async function sendMessage(newPageLoaded = false, substepUpdated = false, overri
 
 // runs only once when chatbot.html is first rendered in the browser (i.e., when the iframe is inserted into the DOM and loads the chatbot page).
 window.addEventListener("DOMContentLoaded", () => {
+    // Activate collapse logic
+    setupChatCollapse(); 
+    
     // Let parent know which assistant
     console.log("Sending assistant to parent: grace");
     window.parent.postMessage({ instruction: "sendAssistant", assistant: "grace" }, "*");
