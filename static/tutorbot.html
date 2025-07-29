@@ -6,12 +6,17 @@
   <link rel="stylesheet" href="bot_style.css">
 </head>
 <body>
-  <div id="chatbot-root" class="chatbot-collapsed">
+  <div id="chatbot-root">
     <div class="chatbot-container">
 
       <div class="chatbot-header">
         <button id="collapse-btn" class="collapse-btn">▼</button> <!-- ▼ means collapsed -->
-        <div class="chatbot-title">Alex</div>
+        <div class="chatbot-title">
+          <button id="toggle-input-btn" class="keyboard-toggle-btn" title="Toggle input">
+            ⌨️
+          </button>
+          <span>Alex</span>
+        </div>
         <div class="chatbot-listening-controls">
           <label class="switch">
             <input type="checkbox" id="listen-checkbox" onchange="toggleListening()">
@@ -22,7 +27,32 @@
       </div>
 
       <div id="chat-ui">
-        <div class="chatbot-messages" id="messages"></div>
+        <div class="chatbot-messages">
+          <!-- Activation screen -->
+          <div id="activation-screen" class="activation-screen">
+            <div class="privacy-notice">
+              <h3><span class="shield-icon">🛡️</span> Data Privacy Notice</h3>
+              <p>Your voice and chat interactions are processed locally on this device.</p>
+              <ul>
+                <li>No data is saved, sent, or stored externally.</li>
+                <li>The assistant does not collect personal information.</li>
+                <li>You may stop the interaction or cancel the task at any time.</li>
+              </ul>
+              <p>You are in control. The assistant only listens when you turn it on. Look for this switch:</p>
+              <div class="status-preview">
+                <label class="switch preview-switch">
+                  <input type="checkbox" disabled checked>
+                  <span class="slider"></span>
+                </label>
+                <span class="listening-status">Listening...</span>
+              </div>
+              <p>To use the chat box, tap this icon: <span class="keyboard-icon">⌨️</span></p>
+            </div>
+          </div>
+
+          <!-- Actual message stream -->
+          <div id="messages" class="messages" style="display: none;"></div>
+        </div>
         <div class="chatbot-input">
           <input type="text" id="chat-input" placeholder="Type a message...">
           <button onclick="sendMessage()">Send</button>

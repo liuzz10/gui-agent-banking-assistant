@@ -3,7 +3,9 @@ let intent = null;
 let lastSelector = null;
 let botMessage = null;
 let state = JSON.parse(sessionStorage.getItem("state") || "null");
+let speech_rate = 0.9;
 const waitToTakeAction = 5000;
+const welcomeMessage = "Hi! I'm Alex. Tell me what you want to do, for example, e-transfer, and I'll walk you through.";
 const currentPage = window.parent.location.pathname.split("/").pop();
 
 // This function sets the chat UI to be collapsed or expanded based on the isCollapsed parameter. (for the ease of voice control)
@@ -30,8 +32,8 @@ function setupChatCollapse() {
   // ✅ Default to collapsed if no value stored yet
   let stored = sessionStorage.getItem("chatbotCollapsed");
 
-  // If there's no stored value, default to true (collapsed)
-  let isCollapsed = stored === null ? true : stored === "true";
+  // If there's no stored value, default to false (open)
+  let isCollapsed = stored === null ? false : stored === "true";
 
   // Apply visual + store
   setChatCollapsed(isCollapsed);
@@ -44,21 +46,46 @@ function setupChatCollapse() {
   });
 }
 
+function setupKeyboardToggle() {
+  const inputSection = document.querySelector(".chatbot-input");
+  const toggleBtn = document.getElementById("toggle-input-btn");
+
+  // Default to hidden
+  inputSection.style.display = "none";
+  toggleBtn.classList.remove("active");
+
+  toggleBtn.addEventListener("click", () => {
+    const isVisible = inputSection.style.display !== "none";
+    inputSection.style.display = isVisible ? "none" : "flex";
+
+    // Toggle visual active state
+    toggleBtn.classList.toggle("active", !isVisible);
+  });
+}
+
+
+
 // This function toggles the listening state of the chatbot.
 function toggleListening() {
   const isChecked = document.getElementById("listen-checkbox").checked;
   const statusLabel = document.getElementById("listening-status");
 
-  if (isChecked && !listening) {
+  const activationScreen = document.getElementById("activation-screen");
+  const messages = document.getElementById("messages");
+
+  if (isChecked) {
     recognition.start();
     listening = true;
-    statusLabel.textContent = "Active";
+    statusLabel.textContent = "Listening...";
     sessionStorage.setItem("listening", "true");
+
+    // ✅ Show chat messages, hide activation screen
+    activationScreen.style.display = "none";
+    messages.style.display = "block";
 
     // 👇 Expand chatbot when turned on
     setChatCollapsed(false);
 
-    const welcomeMessage = "Hi! I'm Alex. Tell me what you want to do, for example, e-transfer, and I'll walk you through.";
     appendMessage("assistant", welcomeMessage);
 
     if (intent) {
@@ -69,11 +96,15 @@ function toggleListening() {
   } else if (!isChecked && listening) {
     recognition.stop();
     listening = false;
-    statusLabel.textContent = "Inactive";
+    statusLabel.textContent = "Not listening";
     sessionStorage.setItem("listening", "false");
 
-    // 👇 Collapse chatbot when turned off
-    setChatCollapsed(true);
+    // ✅ Show activation screen again, hide chat messages
+    activationScreen.style.display = "block";
+    messages.style.display = "none";
+
+    // // 👇 Collapse chatbot when turned off
+    // setChatCollapsed(true);
   }
 }
 
@@ -230,6 +261,8 @@ function speak(text) {
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-US';
+    // ✅ Adjust the speech rate here
+    utterance.rate = speech_rate; 
 
     const voices = speechSynthesis.getVoices();
     const voice = voices.find(v => v.lang === 'en-AU' && v.name.includes("Google"));
@@ -376,6 +409,9 @@ window.addEventListener("DOMContentLoaded", () => {
     // Activate collapse logic
     setupChatCollapse(); 
 
+    // Activate keyboard toggle for input
+    setupKeyboardToggle();
+
     // Let parent know which assistant
     console.log("Sending assistant to parent: grace");
     window.parent.postMessage({ instruction: "sendAssistant", assistant: "grace" }, "*");
@@ -390,7 +426,7 @@ window.addEventListener("DOMContentLoaded", () => {
     listening = storedListening === "true";
 
     document.getElementById("listen-checkbox").checked = listening;
-    document.getElementById("listening-status").textContent = listening ? "Active" : "Inactive";
+    document.getElementById("listening-status").textContent = listening ? "Listening" : "Not listening";
 
     if (listening && recognition) {
     recognition.start();

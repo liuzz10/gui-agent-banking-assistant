@@ -62,13 +62,45 @@ body { margin: 0; font-family: sans-serif; }
     justify-content: space-between;
 }
 
+#chat-ui {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* important for scrollable children */
+}
+
 .chatbot-messages {
     height: 260px; /* 310 - 50 (input) */
     flex: 1;
-    padding: 10px;
+    padding: 0 10px;
     overflow-y: auto;
     background: #f2f2f2;
 }
+
+.messages {
+  display: flex;
+  flex-direction: column;
+  /* gap: 0.5em; */
+  overflow-y: auto;
+}
+
+.privacy-notice {
+  text-align: center;
+  /* display: flex; */
+  flex-direction: column;
+  align-items: center;
+}
+
+.privacy-notice ul {
+  list-style-position: outside;     /* bullet stays outside */
+  text-align: left;                 /* aligns text to the left */
+  font-size: 13px;
+}
+
+.privacy-notice p {
+  font-size: 13px;
+}
+
 /* ✅ Input fixed to bottom */
 .chatbot-input {
   display: flex;
@@ -140,9 +172,22 @@ input:checked + .slider:before {
     transform: translateX(26px);
 }
 
-#chat-ui {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0; /* important for scrollable children */
+.keyboard-toggle-btn {
+  background: none;
+  border: none;
+  font-size: 1.2em;
+  cursor: pointer;
+  margin-right: 8px;
+  border-radius: 4px;
+  transition: background-color 0.3s;
+}
+
+.keyboard-toggle-btn.active {
+  background-color: #4caf50;   /* or any highlight color */
+  color: white;
+}
+
+.keyboard-icon {
+  font-size: 1.8em; /* or try 2em, 24px, etc. */
+  vertical-align: middle;
 }
