@@ -425,9 +425,20 @@ window.addEventListener("DOMContentLoaded", () => {
     const storedListening = sessionStorage.getItem("listening");
     listening = storedListening === "true";
 
+    // ✅ Show/hide activation screen based on listening state (for the following pages)
+    const activationScreen = document.getElementById("activation-screen");
+    const messages = document.getElementById("messages");
+    // If bot is listening, show messages; otherwise, show activation screen
+    if (listening) {
+    activationScreen.style.display = "none";
+    messages.style.display = "block";
+    } else {
+    activationScreen.style.display = "block";
+    messages.style.display = "none";
+    }
+
     document.getElementById("listen-checkbox").checked = listening;
     document.getElementById("listening-status").textContent = listening ? "Listening" : "Not listening";
-
     if (listening && recognition) {
     recognition.start();
     }
