@@ -499,8 +499,10 @@ window.addEventListener("DOMContentLoaded", () => {
 window.addEventListener("message", (event) => {
     const { instruction, text } = event.data;
     if (instruction === "log" && typeof text === "string") {
-    console.log("Received log message from parent:", text);
-    logUserAction(text);
+            console.log("Received log message from parent:", text);
+            logUserAction(text);
+            console.log("Calling sendMessage() because of log instruction");
+            sendMessage(true, false, null)
     }
 });
 

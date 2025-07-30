@@ -26,8 +26,8 @@
       <button class="view_activity" id="view_saving_activity"  onclick="window.location.href='statement/savings_activity.html'">View Activity</button>
     </div>
   </div>
-  <!-- <iframe src="tutorbot.html" class="chatbot-frame"></iframe> -->
-  <iframe src="tellerbot.html" class="chatbot-frame"></iframe>
+  <iframe src="tutorbot.html" class="chatbot-frame"></iframe>
+  <!-- <iframe src="tellerbot.html" class="chatbot-frame"></iframe> -->
 <script>
   let lastHighlightedSelector = null;
   let assistant = "grace"; // Default assistant
@@ -109,11 +109,12 @@
         if (assistant.toLowerCase() === "frank") {
           msg = `✅ I clicked "${clickedText}" for you`;
         } else if (assistant.toLowerCase() === "grace") {
-          console.log("Current assistant", assistant)
           msg = `✅ You clicked "${clickedText}"`;
         } else {
           msg = ``; // fallback/default
         }
+
+        console.log("msg in parent", msg)
 
         chatbotIframe.contentWindow.postMessage({
           instruction: "log",

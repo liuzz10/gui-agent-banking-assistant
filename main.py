@@ -414,6 +414,9 @@ check_activity_tutor = OrderedDict({
                     }
                 },
                 "desc": "Prompted user to download chequing statement"
+            },
+            "success": {
+                "immediate_reply": "Anything else I can help you with?"
             }
         })
     },
@@ -433,6 +436,9 @@ check_activity_tutor = OrderedDict({
                     }
                 },
                 "desc": "Prompted user to download savings statement"
+            },
+            "success": {
+                "immediate_reply": "Anything else I can help you with?"
             }
         })
     }
@@ -478,6 +484,9 @@ check_activity_teller = OrderedDict({
                     }
                 },
                 "desc": "Prompted user to download chequing statement"
+            },
+            "success": {
+                "immediate_reply": "Anything else I can help you with?"
             }
         })
     },
@@ -497,6 +506,9 @@ check_activity_teller = OrderedDict({
                     }
                 },
                 "desc": "Prompted user to download savings statement"
+            },
+            "success": {
+                "immediate_reply": "Anything else I can help you with?"
             }
         })
     }
@@ -654,7 +666,7 @@ def run_confirmation_agent(messages, state):
 def yesno_classification_handler(new_page_loaded, messages, substep, intent):
     # 1. Ask the yes/no question if newPageLoaded
     print("====Yes/No classification handler called")
-    print("substep", substep)
+    # print("substep", substep)
     if new_page_loaded:
         print("New page loaded, asking yes/no question...")
         return {
@@ -666,7 +678,7 @@ def yesno_classification_handler(new_page_loaded, messages, substep, intent):
     # 2. Classify user response
     classification = api_call(YESNO_CLASSIFIER_PROMPT, messages)
     print("Classification result:", classification)
-    print("Substep:", substep)
+    # print("Substep:", substep)
 
     if classification.lower() == "yes":
         return {
@@ -690,7 +702,7 @@ def yesno_classification_handler(new_page_loaded, messages, substep, intent):
 def classification_handler(substep, messages, intent, new_page_loaded=False):
     print("====Classification handler called")
     # 1. Ask the yes/no question if newPageLoaded
-    print("substep", substep)
+    # print("substep", substep)
     if new_page_loaded:
         print("New page loaded, asking yes/no question...")
         return {
@@ -947,6 +959,7 @@ async def chat(request: Request):
 # Frank - Sam
 @app.post("/tellerbot")
 async def chat(request: Request):
+    print("🔔 /tellerbot hit")
     body = await request.json()
     messages = body.get("messages", [])
     intent = body.get("intent") or None

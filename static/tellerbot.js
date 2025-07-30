@@ -198,6 +198,7 @@ function dehighlightAll(lastInstruction = "mark-complete") {
 
 // Log user action to the chat history and sessionStorage
 function logUserAction(text) {
+    console.log("Logging user action:", text);
     appendMessage("user", text);
     chatHistory.push({ role: "user", content: text });
     sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
@@ -316,13 +317,13 @@ async function sendMessage(newPageLoaded = false, substepUpdated = false, overri
 
     input.value = "";
 
+    console.log("sending messages to backend:", chatHistory);
     const res = await fetch("/tellerbot", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
         messages: chatHistory,
         newPageLoaded,
-        substepUpdated,
         intent,
         currentPage,
         state,
@@ -415,12 +416,13 @@ window.addEventListener("DOMContentLoaded", () => {
     document.getElementById("listening-status").textContent = listening ? "Listening" : "Not listening";
 
     if (listening && recognition) {
-    recognition.start();
+        recognition.start();
     }
 
+    // If the page just loaded, auto-resume if intent is set
     if (intent) {
-    console.log("Calling sendMessage: Auto-resuming on new page");
-    sendMessage(true);  // ✅ Clean, unified resume
+        console.log("Calling sendMessage: Auto-resuming on new page");
+        sendMessage(true);  // ✅ Clean, unified resume
     }
 
 
@@ -433,17 +435,6 @@ window.addEventListener("DOMContentLoaded", () => {
         sendMessage();
     }
     });
-
-    // // Automatically send a message: if there's no intent, asking for intent. If there's, resuming the conversation.
-    // if (!intent) {
-    //   appendMessage("assistant", "Hi! I'm Sam. Tell me what you want to do, for example, e-transfer, and I'll take care of it.");
-    // } else {
-    //   // Figure out the step based on intent + page
-    //   // This logic is only run when the chatbot is first loaded, not on every message sent.
-    //   // This is to ensure that the chatbot can resume the conversation from the correct step.
-    //   console.log("calling sendMessage for resuming")
-    //   sendMessage(newPageLoaded = true);
-    // }
 
     // If the current page is "send_to_alex.html", set up event listeners for the parent form fields
     // This is to ensure that the chatbot can update the substep flags when the elements got selects
@@ -458,8 +449,9 @@ window.addEventListener("DOMContentLoaded", () => {
         const amountReady = amountEl && parseFloat(amountEl.value) > 0;
 
         if (accountReady && amountReady) {
-        console.log("Both account and amount selected — sending message.");
-        sendMessage(substepUpdated = true);  // or sendMessage(substepUpdated = true); if needed
+            console.log("Both account and amount selected — sending message.");
+            // Both account and amount selected — sending message.
+            sendMessage(substepUpdated = true);
         }
     }
 
@@ -472,7 +464,9 @@ window.addEventListener("DOMContentLoaded", () => {
 window.addEventListener("message", (event) => {
     const { instruction, text } = event.data;
     if (instruction === "log" && typeof text === "string") {
-    logUserAction(text);
+        logUserAction(text);
+        console.log("Calling sendMessage() because of log instruction");
+        sendMessage(true, false, null)
     }
 });
 
@@ -498,13 +492,14 @@ if (recognition) {
     recognition.lang = 'en-US';
 
     recognition.onresult = function(event) {
-    if (isSpeaking) {
-        console.warn("Ignoring recognition during TTS");
-        return;
-    }
-    const transcript = event.results[0][0].transcript;
-    console.log("Calling sendMessage on speech recognition result:", transcript);
-    sendMessage(false, false, transcript);
+        if (isSpeaking) {
+            console.warn("Ignoring recognition during TTS");
+            return;
+        }
+        const transcript = event.results[0][0].transcript;
+        console.log("Calling sendMessage on speech recognition result:", transcript);
+        // Send the recognized speech as a message
+        sendMessage(false, false, transcript);
     };
 
     recognition.onerror = function(event) {
