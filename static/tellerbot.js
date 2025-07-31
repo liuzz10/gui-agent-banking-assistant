@@ -465,8 +465,8 @@ window.addEventListener("message", (event) => {
     const { instruction, text } = event.data;
     if (instruction === "log" && typeof text === "string") {
         logUserAction(text);
-        console.log("Calling sendMessage() because of log instruction");
-        sendMessage(true, false, null)
+        // console.log("Calling sendMessage() because of log instruction");
+        // sendMessage(true, false, null)
     }
 });
 
