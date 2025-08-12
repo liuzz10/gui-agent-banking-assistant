@@ -9,25 +9,73 @@
   <nav>
     <h1>My Online Bank</h1>
     <div class="nav-buttons">
-      <button id="nav-account" onclick="window.location.href='index.html'">Accounts</button>
-      <button id="nav-paybill" onclick="window.location.href='pay_bill/pay_bill.html'">Pay Bills</button>
-      <button id="nav-transfer" onclick="window.location.href='etransfer/etransfer.html'">e-Transfer</button>
+      <button class="nav-btn is-current" id="nav-account" onclick="window.location.href='index.html'">Accounts</button>
+      <button class="nav-btn" id="nav-paybill" onclick="window.location.href='pay_bill/pay_bill.html'">Pay Bills</button>
+      <button class="nav-btn" id="nav-transfer" onclick="window.location.href='etransfer/etransfer.html'">e-Transfer</button>
+      <button class="nav-btn" id="nav-services" onclick="window.location.href='services.html'">Bank Services</button>
+      <button class="nav-btn" id="nav-profile" onclick="window.location.href='profile.html'">Profile & Settings</button>
     </div>
   </nav>
-  <div class="content">
-    <div class="account-box">
-      <h2>Chequing Account</h2>
-      <p class="balance">$3,542.30</p>
-      <button class="view_activity" id="view_checking_activity" onclick="window.location.href='statement/chequing_activity.html'">View Activity</button>
+  <div class="accounts-section">
+    <div class="section-head">
+      <h2 class="h2">My Accounts</h2>
+      <button class="print-btn" onclick="window.print()" aria-label="Print">
+        <span class="print-icon" aria-hidden="true"></span> PRINT
+      </button>
     </div>
-    <div class="account-box">
-      <h2>Savings Account</h2>
-      <p class="balance">$12,874.10</p>
-      <button class="view_activity" id="view_saving_activity"  onclick="window.location.href='statement/savings_activity.html'">View Activity</button>
-    </div>
+
+    <section class="stack">
+      <article class="account-card">
+        <div class="account-card__title">Chequing Account</div>
+        <div class="account-card__meta">5438</div>
+        <div class="account-card__balance positive">$3,542.30</div>
+        <button class="link-btn view_activity" id="view_checking_activity"
+                onclick="window.location.href='statement/chequing_activity.html'">
+          View Activity
+        </button>
+      </article>
+
+      <article class="account-card">
+        <div class="account-card__title">Savings Account</div>
+        <div class="account-card__meta">4320</div>
+        <div class="account-card__balance positive">$12,874.10</div>
+        <button class="link-btn view_activity" id="view_saving_activity"
+                onclick="window.location.href='statement/savings_activity.html'">
+          View Activity
+        </button>
+      </article>
+
+      <article class="account-card">
+        <div class="account-card__title">Credit Card</div>
+        <div class="account-card__meta">4126</div>
+        <div class="account-card__balance positive">$125.00</div>
+        <button class="link-btn"
+                onclick="window.location.href='statement/credit_activity.html'">
+          View Activity
+        </button>
+      </article>
+
+      <!-- Quick links card -->
+      <article class="account-card">
+        <a class="quicklink" href="#">
+          <!-- <span class="quicklink-icon">📅</span> -->
+          Book or Manage Appointments
+        </a>
+        <a class="quicklink" href="#">
+          <!-- <span class="quicklink-icon">📍</span> -->
+          Locate an ATM or branch
+        </a>
+        <a class="quicklink" href="#">
+          <!-- <span class="quicklink-icon">✉️</span> -->
+          Send us a message
+        </a>
+      </article>
+    </section>
   </div>
-  <iframe src="tutorbot.html" class="chatbot-frame"></iframe>
-  <!-- <iframe src="tellerbot.html" class="chatbot-frame"></iframe> -->
+
+  <!-- <iframe src="tutorbot.html" class="chatbot-frame"></iframe> -->
+  <iframe src="tellerbot.html" class="chatbot-frame"></iframe>
+
 <script>
   let lastHighlightedSelector = null;
   let assistant = "grace"; // Default assistant

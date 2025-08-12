@@ -12,10 +12,13 @@
       <button onclick="window.location.href='../index.html'">Accounts</button>
       <button onclick="window.location.href='../pay_bill/pay_bill.html'">Pay Bills</button>
       <button class="active-tab" onclick="window.location.href='etransfer.html'">e-Transfer</button>
+      <button class="nav-btn" id="nav-services" onclick="window.location.href='services.html'">Bank Services</button>
+      <button class="nav-btn" id="nav-profile" onclick="window.location.href='profile.html'">Profile & Settings</button>
     </div>
   </nav>
 
   <div class="content">
+    <button class="button" onclick="window.history.back()">⬅  Back</button>
     <div class="payee-box">
       <h2>Send to Bob Chen</h2>
       <p>Email: bob.chen@emailaddress.com (autodeposit is enabled)</p>
@@ -34,8 +37,8 @@
     </div>    
   </div>
 
-  <iframe src="../tutorbot.html" class="chatbot-frame"></iframe>
-  <!-- <iframe src="../tellerbot.html" class="chatbot-frame"></iframe> -->
+  <!-- <iframe src="../tutorbot.html" class="chatbot-frame"></iframe> -->
+  <iframe src="../tellerbot.html" class="chatbot-frame"></iframe>
 
   <script>
     document.addEventListener("DOMContentLoaded", () => {
@@ -70,74 +73,78 @@
 
     // Take action based on messages from the chatbot
     let assistant = "grace"; // Default assistant
+
     window.addEventListener("message", (event) => {
-      // 🔹 First handle assistant assignment
-      if (event.data?.instruction === "sendAssistant" && event.data.assistant) {
+        // 🔹 First handle assistant assignment
+        if (event.data?.instruction === "sendAssistant" && event.data.assistant) {
         assistant = event.data.assistant;
         sessionStorage.setItem("assistant", assistant);
         console.log("✅ Assistant set to:", assistant);
         return;  // ✅ Important: stop further processing for this message
-      }
+        }
 
-      // Ignore messages not from your iframe
-      if (!event.data || typeof event.data !== "object") return;
-      if (!("instruction" in event.data)) return;
+        // Basic guards
+        if (!event.data || typeof event.data !== "object") return;
+        if (!("instruction" in event.data)) return;
 
-      const { selector, instruction, value } = event.data;
-      console.log("Received message from chatbot:", selector, instruction, value);
-      if (typeof selector !== "string" || typeof instruction !== "string") return;
+        const { selector, instruction, value } = event.data;
+        console.log("Received message from chatbot:", selector, instruction, value);
+        if (typeof instruction !== "string") return;
 
-      lastHighlightedSelector = selector;
-      const elements = document.querySelectorAll(selector);
+        // 🔙 Handle global navigation actions (no selector required)
+        if (instruction === "navigate") {
+          if (value === "back") window.history.back();
+          else if (value === "forward") window.history.forward();
+          else if (value === "reload") window.location.reload();
+          return; // nothing else to do
+        }
 
-      if (instruction === "highlight") {
+        // For the rest, selector is expected; bail if it's not a string
+        if (typeof selector !== "string") return;
+
+        lastHighlightedSelector = selector;
+        const elements = document.querySelectorAll(selector);
+
+        if (instruction === "highlight") {
         elements.forEach(el => el.classList.add("highlight"));
-      }
-      if (instruction === "mark-complete") {
+        }
+        if (instruction === "mark-complete") {
         elements.forEach(el => el.classList.remove("highlight"));
-      }
-      if (instruction === "fill") {
+        }
+        if (instruction === "fill") {
         elements.forEach(el => {
-          if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+            if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
             el.value = value || "";
             el.dispatchEvent(new Event("input", { bubbles: true }));
             el.dispatchEvent(new Event("change", { bubbles: true }));
-          }
-        });
-      }
-      if (instruction === "select") {
-        elements.forEach(el => {
-          if (el.tagName === "SELECT") {
-            const match = Array.from(el.options).find(
-              opt => opt.textContent.trim().toLowerCase() === value.toLowerCase() ||
-                    opt.value.trim().toLowerCase() === value.toLowerCase()
-            );
-            if (match) {
-              el.value = match.value;
-              el.dispatchEvent(new Event("change", { bubbles: true }));
-            } else {
-              console.warn("No matching <option> found for:", value);
             }
-          }
         });
-      }
-      if (instruction === "click") {
-          elements.forEach(el => {
+        }
+        if (instruction === "select") {
+        elements.forEach(el => {
+            if (el.tagName === "SELECT") {
+            el.value = value || "";
+            el.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+        });
+        }
+        if (instruction === "click") {
+            elements.forEach(el => {
             const event = new MouseEvent("click", {
-              bubbles: true,
-              cancelable: true,
-              view: window
+                bubbles: true,
+                cancelable: true,
+                view: window
             });
             el.dispatchEvent(event);
-          });
-      }
-      if (instruction === "submit") {
+            });
+        }
+        if (instruction === "submit") {
         elements.forEach(el => {
-          if (el.tagName === "FORM") {
+            if (el.tagName === "FORM") {
             el.submit();
-          }
+            }
         });
-      }
+        }
     });
   </script>
 

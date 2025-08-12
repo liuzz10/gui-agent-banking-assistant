@@ -13,33 +13,132 @@
       <button onclick="window.location.href='../index.html'">Accounts</button>
       <button onclick="window.location.href='../pay_bill/pay_bill.html'">Pay Bills</button>
       <button onclick="window.location.href='../etransfer/etransfer.html'">e-Transfer</button>
+      <button class="nav-btn" id="nav-services" onclick="window.location.href='services.html'">Bank Services</button>
+      <button class="nav-btn" id="nav-profile" onclick="window.location.href='profile.html'">Profile & Settings</button>
     </div>
   </nav>
 
-  <div class="content">
-    <button class="button" onclick="window.location.href='../index.html'">⬅  Back to Accounts</button>
-    <br><br>
-    <div class="account-box">
-      <h2>Chequing Account</h2>
-      <p class="balance">$3,542.30</p>
-      <h3>Recent Transactions</h3>
-      <table id="chequing-table" border="1" style="width:100%; margin-top:10px">
-        <thead>
-          <tr><th>Date</th><th>Description</th><th>Amount</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>2025-07-15</td><td>Grocery Store</td><td>-$45.67</td></tr>
-          <tr><td>2025-07-13</td><td>Payroll Deposit</td><td>+$1,200.00</td></tr>
-          <tr><td>2025-07-10</td><td>Utility Bill</td><td>-$92.30</td></tr>
-        </tbody>
-      </table>
-      <br><br>
-      <button class="button button-primary" id="chequing-statement-download" onclick="downloadStatement('chequing-table', 'chequing_statement.csv')">Download Statement</button>
+  <div class="accounts-section content chequing-page">
+
+    <!-- Page title row -->
+    <div class="page-title">
+      <h2 class="page-title__text">Primary Chequing Account 38792 2561-5438</h2>
+      <button class="action-link" onclick="window.print()">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 9V3h12v6M6 17H4a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          <path d="M7 17h10v4H7zM6 13h1" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        </svg>
+        PRINT
+      </button>
     </div>
+
+    <!-- Balance summary card -->
+    <section class="card balance-card">
+      <div class="balance-card__row balance-card__row--top">
+        <div class="metric">
+          <div class="metric__label">Current balance</div>
+          <div class="metric__value">$3,542.30</div>
+        </div>
+      </div>
+
+      <hr class="card-sep" />
+
+      <div class="balance-card__row">
+        <div class="metric">
+          <div class="metric__label">Available balance</div>
+          <div class="metric__value">$2,500.00</div>
+        </div>
+        <div class="metric">
+          <div class="metric__label">Funds available</div>
+          <div class="metric__value">$0.00</div>
+        </div>
+
+        <div class="quick-actions">
+          <a class="quick-action" href="#">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 4v4m0 8v4m8-8h-4M8 12H4" fill="none" stroke="currentColor" stroke-width="1.6" />
+            </svg>
+            View Pre-authorized Debits
+          </a>
+          <a class="quick-action" href="#">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 3h10v6H7zM5 9h14v10H5zM9 13h6" fill="none" stroke="currentColor" stroke-width="1.6"/>
+            </svg>
+            Download Void Cheque
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Transactions header row -->
+    <div class="section-head">
+      <h3 class="section-head__title">Transactions</h3>
+      <button class="action-link" id="chequing-statement-download" onclick="downloadStatement('chequing-table','chequing_statement.csv')">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        </svg>
+        DOWNLOAD
+      </button>
+      <!-- <button class="button button-primary" id="chequing-statement-download" onclick="downloadStatement('chequing-table', 'chequing_statement.csv')">Download Statement</button> -->
+    </div>
+
+    <!-- Transactions card -->
+    <section class="card tx-card">
+      <!-- filter bar -->
+      <div class="tx-filter">
+        <span class="tx-filter__lead">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 6h16M6 12h12M10 18h4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+          </svg>
+          FILTER
+        </span>
+        <span class="tx-filter__showing">Showing:</span>
+        <span class="chip">30 days</span>
+        <span class="chip chip--muted">All transactions</span>
+      </div>
+
+      <!-- table -->
+      <div class="table-wrap">
+        <table class="tx-table" id="chequing-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Description</th>
+              <th>Money out</th>
+              <th>Money in</th>
+              <th>Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>August 08, 2025</td>
+              <td>GAS</td>
+              <td class="neg">- $100.00</td>
+              <td></td>
+              <td>$3542.30</td>
+            </tr>
+            <tr>
+              <td>August 05, 2025</td>
+              <td>GROCERIES</td>
+              <td class="neg">- $120.00</td>
+              <td></td>
+              <td>$3662.30</td>
+            </tr>
+            <tr>
+              <td>August 08, 2025</td>
+              <td>CREDIT CARD CASHBACK</td>
+              <td></td>
+              <td class="pos">+ $50.00</td>
+              <td>$3712.30</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
   </div>
 
-  <iframe src="../tutorbot.html" class="chatbot-frame"></iframe>
-  <!-- <iframe src="../tellerbot.html" class="chatbot-frame"></iframe> -->
+  <!-- <iframe src="../tutorbot.html" class="chatbot-frame"></iframe> -->
+  <iframe src="../tellerbot.html" class="chatbot-frame"></iframe>
 </body>
 
 <script>
@@ -55,13 +154,24 @@
       return;  // ✅ Important: stop further processing for this message
       }
 
-      // Ignore messages not from your iframe
+      // Basic guards
       if (!event.data || typeof event.data !== "object") return;
       if (!("instruction" in event.data)) return;
 
       const { selector, instruction, value } = event.data;
       console.log("Received message from chatbot:", selector, instruction, value);
-      if (typeof selector !== "string" || typeof instruction !== "string") return;
+      if (typeof instruction !== "string") return;
+
+      // 🔙 Handle global navigation actions (no selector required)
+      if (instruction === "navigate") {
+        if (value === "back") window.history.back();
+        else if (value === "forward") window.history.forward();
+        else if (value === "reload") window.location.reload();
+        return; // nothing else to do
+      }
+
+      // For the rest, selector is expected; bail if it's not a string
+      if (typeof selector !== "string") return;
 
       lastHighlightedSelector = selector;
       const elements = document.querySelectorAll(selector);
