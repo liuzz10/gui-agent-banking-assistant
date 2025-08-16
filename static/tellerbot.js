@@ -361,22 +361,36 @@ async function sendMessage(newPageLoaded = false, substepUpdated = false, overri
     // Dehighlight anything from the last step
     dehighlightAll();
     if (Array.isArray(data.action)) {
-    data.action.forEach(act => {
-        if (act.selector && act.action) {
-        highlight(act.selector); // highlight the action to take automatically
+    data.action.forEach((act) => {
+        if (!act || typeof act !== "object") return;
 
-        setTimeout(() => {
-            performAction(act.selector, act.action, act.value);
-        }, waitToTakeAction);
-        }
-
+        // 1) Show any immediate reply first so users see it before navigation
         if (act.immediate_reply) {
         appendMessage("assistant", act.immediate_reply);
         chatHistory.push({ role: "assistant", content: act.immediate_reply });
         sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
         }
+
+        // 2) Highlight only if we actually have a selector
+        if (act.selector) {
+        try { highlight(act.selector); } catch (e) { console.warn("highlight failed:", e); }
+        }
+
+        // 3) Figure out delay (action-specific delay overrides global)
+        const delay = Number.isFinite(act?.delay) ? act.delay : waitToTakeAction;
+
+        // 4) Perform the action
+        setTimeout(() => {
+        try {
+            // If the action doesn't need a selector (e.g., navigate), allow it to run
+            performAction(act.selector || null, act.action, act.value);
+        } catch (e) {
+            console.error("performAction error:", e, act);
+        }
+        }, delay);
     });
-    }
+}
+
 }
 
 // runs only once when chatbot.html is first rendered in the browser (i.e., when the iframe is inserted into the DOM and loads the chatbot page).
@@ -427,7 +441,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
 
     // Restore chatbox and history
-    for (const m of chatHistory) appendMessage(m.role, m.content, suppressTTS=true); // Re-render chat history
+    for (const m of chatHistory) appendMessage(m.role, m.content, true); // Re-render chat history
     const input = document.getElementById("chat-input");
     input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {

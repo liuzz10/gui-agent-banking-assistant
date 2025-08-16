@@ -241,6 +241,35 @@ CLARIFICATION_PROMPT = (
     "that will help determine whether the user wants to: {label_list}."
 )
 
+
+# --- Back-intent classifier prompt (binary) ---
+GO_BACK_PROMPT = """
+You are a binary classifier. Decide if the user is asking to go back to the previous screen in the app.
+Output exactly one token: go_back or none.
+
+Consider "go back", "back", "previous", "previous screen/page", "take me back",
+"back to [X]" (e.g., back to accounts), "undo last step", "return to the last page".
+Treat "undo last step" or "change selection" as go_back if it implies returning to the prior screen.
+
+Do NOT trigger for unrelated uses of "back" (e.g., "back pain", "background", "cashback", "back soon").
+
+Conversation (latest message last):
+{messages}
+Answer:
+"""
+
+def wants_navigation_back(messages) -> bool:
+    """
+    Uses GPT to decide if the user wants to navigate back.
+    Returns True if GPT says 'go_back'; otherwise False.
+    """
+    try:
+        label = (api_call(GO_BACK_PROMPT, messages) or "").strip().lower()
+        return label.startswith("go_back")
+    except Exception:
+        return False  # fail safe: if classifier fails, don't navigate
+
+
 # Grace - Alex
 e_transfer_tutor = OrderedDict({
     "index.html": {
@@ -357,7 +386,7 @@ e_transfer_teller = OrderedDict({
     "confirm_transfer.html": {
         "substeps": OrderedDict({
             "confirm_transfer": {
-                "immediate_reply": "Please double-check the information and click 'Confirm' to complete the transfer, or 'Cancel' if you want to stop.",
+                "immediate_reply": "Because this is the final step, you need to take the action yourself. Please double-check the information and click 'Confirm' to complete the transfer, or 'Cancel' if you want to stop.",
                 "prompt": CONFIRM_TRANSFER_PROMPT,
                 "desc": "Clicked 'Confirm'",
                 "action": [{"action": "highlight", "selector": "#confirm-button, #cancel-button"}]  # Frank will click the button for the user
@@ -973,6 +1002,13 @@ async def chat(request: Request):
         intent = None
 
     print("====Intent and current_page from frontend:", intent, current_page)
+
+    # 🔙 GPT-powered back-intent check (runs before intent ID)
+    if wants_navigation_back(messages):
+        return {
+            "botMessage": "Okay — going back to the previous page.",
+            "action": [{"action": "navigate", "value": "back"}],
+        }
 
     # 1. Intent Identification
     if not intent:
