@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Transfer Successful</title>
+  <title>Bill Payment Successful</title>
   <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
@@ -18,11 +18,12 @@
   </nav>
 
   <div class="content">
-    <div class="payee-box" style="text-align: center;">
+    <div class="payee-box">
       <h2>🎉 Bill Payment Successful!</h2>
       <p>Your payment to <strong>Bell</strong> has been processed successfully.</p>
+
       <div class="account-box" style="text-align: left; display: inline-block; margin-top: 20px;">
-        <p>Recipient: Bell</p>
+        <p>Pay to: Bell</p>
         <p>Account Number: 87223312227</p>
         <p id="account-display"></p>
         <p id="amount-display"></p>
@@ -34,34 +35,92 @@
     </div>
   </div>
 
-  <iframe src="../chatbot.html" style="
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    width: 300px;
-    height: 400px;
-    border: none;
-    z-index: 9999;
-  "></iframe>
+  <!-- <iframe src="../tutorbot.html" class="chatbot-frame"></iframe> -->
+  <iframe src="../tellerbot.html" class="chatbot-frame"></iframe>
 
   <script>
     const params = new URLSearchParams(window.location.search);
     const amount = params.get("amount");
     const account = params.get("account");
-    const autopay = params.get("autopay"); // "yes" or "no"
+    const autoPay = params.get("autopay") === "1";
 
     document.getElementById("amount-display").textContent = `Amount: $${amount}`;
     document.getElementById("account-display").textContent = `From: ${account.charAt(0).toUpperCase() + account.slice(1)} Account`;
-    document.getElementById("autopay-display").textContent = autopay === "yes" ? "Auto-pay: Enabled" : "Auto-pay: Not Enabled";
+    document.getElementById("autopay-display").textContent =
+    autoPay ? "Auto-pay set: Yes (monthly)" : "Auto-pay set: No";
 
     window.addEventListener("message", (event) => {
-      const { selector, instruction } = event.data;
-      if (instruction !== "highlight" || typeof selector !== "string") return;
+        // 🔹 First handle assistant assignment
+        if (event.data?.instruction === "sendAssistant" && event.data.assistant) {
+        assistant = event.data.assistant;
+        sessionStorage.setItem("assistant", assistant);
+        console.log("✅ Assistant set to:", assistant);
+        return;  // ✅ Important: stop further processing for this message
+        }
 
-      const elements = document.querySelectorAll(selector);
-      elements.forEach(el => el.classList.add("highlight"));
+        // Basic guards
+        if (!event.data || typeof event.data !== "object") return;
+        if (!("instruction" in event.data)) return;
+
+        const { selector, instruction, value } = event.data;
+        console.log("Received message from chatbot:", selector, instruction, value);
+        if (typeof instruction !== "string") return;
+
+        // 🔙 Handle global navigation actions (no selector required)
+        if (instruction === "navigate") {
+          if (value === "back") window.history.back();
+          else if (value === "forward") window.history.forward();
+          else if (value === "reload") window.location.reload();
+          return; // nothing else to do
+        }
+
+        // For the rest, selector is expected; bail if it's not a string
+        if (typeof selector !== "string") return;
+
+        lastHighlightedSelector = selector;
+        const elements = document.querySelectorAll(selector);
+
+        if (instruction === "highlight") {
+        elements.forEach(el => el.classList.add("highlight"));
+        }
+        if (instruction === "mark-complete") {
+        elements.forEach(el => el.classList.remove("highlight"));
+        }
+        if (instruction === "fill") {
+        elements.forEach(el => {
+            if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+            el.value = value || "";
+            el.dispatchEvent(new Event("input", { bubbles: true }));
+            el.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+        });
+        }
+        if (instruction === "select") {
+        elements.forEach(el => {
+            if (el.tagName === "SELECT") {
+            el.value = value || "";
+            el.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+        });
+        }
+        if (instruction === "click") {
+            elements.forEach(el => {
+            const event = new MouseEvent("click", {
+                bubbles: true,
+                cancelable: true,
+                view: window
+            });
+            el.dispatchEvent(event);
+            });
+        }
+        if (instruction === "submit") {
+        elements.forEach(el => {
+            if (el.tagName === "FORM") {
+            el.submit();
+            }
+        });
+        }
     });
   </script>
-
 </body>
 </html>
