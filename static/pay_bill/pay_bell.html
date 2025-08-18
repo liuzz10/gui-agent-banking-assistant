@@ -82,7 +82,7 @@
             : "";
           chatbotIframe.contentWindow.postMessage({
             instruction: "log",
-            text: `✅ You plan to send $${amount} to Bell from your ${account} account${autoPayMsg}.`
+            text: `✅ You plan to pay $${amount} to Bell from your ${account} account${autoPayMsg}.`
           }, "*");
 
           // Carry values to the next page
@@ -146,12 +146,13 @@
         });
         }
         if (instruction === "select") {
-        elements.forEach(el => {
-            if (el.tagName === "SELECT") {
-            el.value = value || "";
-            el.dispatchEvent(new Event("change", { bubbles: true }));
-            }
-        });
+          console.log("Selecting element:", elements, value);
+          elements.forEach(el => {
+              if (el.tagName === "SELECT") {
+              el.value = value || "";
+              el.dispatchEvent(new Event("change", { bubbles: true }));
+              }
+          });
         }
         if (instruction === "click") {
             elements.forEach(el => {
@@ -163,6 +164,26 @@
             el.dispatchEvent(event);
             });
         }
+        if (instruction === "check") {
+          elements.forEach(el => {
+            if (el.tagName === "INPUT" && el.type === "checkbox") {
+              el.checked = true;
+              el.dispatchEvent(new Event("input", { bubbles: true }));
+              el.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+          });
+        }
+
+        if (instruction === "uncheck") {
+          elements.forEach(el => {
+            if (el.tagName === "INPUT" && el.type === "checkbox") {
+              el.checked = false;
+              el.dispatchEvent(new Event("input", { bubbles: true }));
+              el.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+          });
+        }
+
         if (instruction === "submit") {
         elements.forEach(el => {
             if (el.tagName === "FORM") {

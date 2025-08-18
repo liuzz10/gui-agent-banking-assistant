@@ -22,17 +22,18 @@
     <h2>Pay Bills</h2>
 
     <div class="payee-box">
-      <button class="button contact-button" id="add-contact-button">+ Add New Payee</button>
+      <button class="button contact-button" id="add-contact-button" onclick="window.location.href='add_payee/add_payee.html'"">+ Add a Payee</button>
     
       <h3>Saved Payees</h3>
       <div class="payee-list">
+        <button class="button contact-button" id="payee-bell" onclick="window.location.href='pay_bell.html'">Bell</button>
         <button class="button contact-button" id="payee-hydro" onclick="window.location.href='pay_bchydro.html'">BC Hydro</button>
         <button class="button contact-button" id="payee-phone" onclick="window.location.href='pay_bill_amount.html'">Telus Mobile</button>
       </div>
     </div>    
 
-  <iframe src="../tutorbot.html" class="chatbot-frame"></iframe>
-  <!-- <iframe src="../tellerbot.html" class="chatbot-frame"></iframe> -->
+  <!-- <iframe src="../tutorbot.html" class="chatbot-frame"></iframe> -->
+  <iframe src="../tellerbot.html" class="chatbot-frame"></iframe>
 
   <script>
     let lastHighlightedSelector = null;

@@ -6,7 +6,7 @@ let state = JSON.parse(sessionStorage.getItem("state") || "null");
 let speech_rate = 0.9;
 const waitToTakeAction = 5000;
 const welcomeMessage = "Hi! I'm Sam. Tell me what you want to do, for example, e-transfer, and I'll take care of it.";
-const currentPage = window.parent.location.pathname.split("/").pop();
+let currentPage = window.parent.location.pathname.split("/").pop();
 
 // This function sets the chat UI to be collapsed or expanded based on the isCollapsed parameter. (for the ease of voice control)
 function setChatCollapsed(isCollapsed) {
@@ -120,18 +120,18 @@ function performAction(selector, action, value = null) {
 function getSummary() {
     console.log("getSummary called for page:", currentPage);
     const patterns = {
-    "confirm_transfer.html": { match: "You plan to send", emoji: /^✅\s*/ },
-    "success.html": { match: "You successfully transfered", emoji: /^🎉\s*/ }
+        "confirm_transfer.html": { match: "You plan to send", emoji: /^✅\s*/ },
+        "success.html": { match: "You successfully", emoji: /^🎉\s*/ },
+        "confirm_bill.html": { match: "You plan to pay",emoji: /^✅\s*/ },
     };
     const pattern = patterns[currentPage];
     if (!pattern) {
-    console.log("No pattern defined for this page.");
-    return "";
+        console.log("No pattern defined for this page.");
+        return "";
     }
     // Look for the last user message that matches
     for (let i = chatHistory.length - 1; i >= 0; i--) {
     const m = chatHistory[i];
-    console.log("Checking message:", m);
     if (m.role === "user" && m.content.includes(pattern.match)) {
         const cleanedText = m.content.replace(pattern.emoji, '');
         console.log("Found matching message:", cleanedText);
@@ -154,21 +154,13 @@ function appendMessage(role, text, suppressTTS = false) {
 
     // Speak if the message is from assistant and on the listening mode
     if (role === "assistant" && listening && !suppressTTS) {
-    if (currentPage === "confirm_transfer.html") {
+    if (currentPage === "confirm_transfer.html" || currentPage === "confirm_bill.html" || currentPage === "success.html") {
         console.log("Confirm transfer page detected, checking for summary");
         const userLog = getSummary();
         if (userLog) {
-        speak(userLog);
+            speak(userLog);
         }
     }
-
-    if (currentPage === "success.html") {
-        const userLog = getSummary();
-        if (userLog) {
-        speak(userLog);
-        }
-    }
-
     speak(text);
     }
 }
@@ -209,20 +201,28 @@ function logUserAction(text) {
 // It returns an object with flags that indicate the progress of the substep.
 // This is used to track the user's progress in the transfer process.
 function updateSubstepFlagsForTransferSomeone() {
+    console.log("Updating substep flags for transfer process");
     const substep_flags = {};
 
     try {
-    const parentDoc = window.parent.document;
-    const account = parentDoc.querySelector("#from-account");
-    const amount = parentDoc.querySelector("#amount");
+        const parentDoc = window.parent.document;
+        const account = parentDoc.querySelector("#from-account");
+        const amount = parentDoc.querySelector("#amount");
 
-    if (account && account.value !== "instruction") {
-        substep_flags.account_chosen = true;
-    }
+        if (account && account.value !== "instruction") {
+            substep_flags.account_chosen = true;
+        }
 
-    if (amount && parseFloat(amount.value) > 0) {
-        substep_flags.amount_entered = true;
-    }
+        if (amount && parseFloat(amount.value) > 0) {
+            substep_flags.amount_entered = true;
+        }
+
+        // if (page === "pay_bell.html") {
+        //     const autoPay = parentDoc.querySelector("#auto-pay");
+        //     if (autoPay && autoPay.checked) {
+        //         substep_flags.auto_pay_setup = true;
+        //     }
+        // }
     } catch (e) {
     console.warn("Unable to access parent form fields:", e);
     }
@@ -295,6 +295,7 @@ function speak(text) {
 // sendMessage() fires when: 
 // 1) The user types a message (e.g., "what's next?") 
 // 2) the page auto-resumes on load (newPageLoaded=True)
+// 3) a field is updated (e.g., "from account" or "amount" in the transfer process)
 async function sendMessage(newPageLoaded = false, substepUpdated = false, overrideTranscript = null) {
     console.log("sendMessage called (newPageLoaded, substepUpdated, overrideTranscript)", newPageLoaded, substepUpdated, overrideTranscript);
     const input = document.getElementById("chat-input");
@@ -305,8 +306,8 @@ async function sendMessage(newPageLoaded = false, substepUpdated = false, overri
     console.log("substep_flags:", substep_flags); 
 
     // This is used to track the user's progress in the transfer process.
-    if (currentPage === "send_to_alex.html") {
-    substep_flags = updateSubstepFlagsForTransferSomeone();
+    if (currentPage === "send_to_alex.html" || currentPage === "pay_bell.html") {
+        substep_flags = updateSubstepFlagsForTransferSomeone();
     }
 
     // Append the message to the chat history and display it
@@ -318,6 +319,8 @@ async function sendMessage(newPageLoaded = false, substepUpdated = false, overri
     input.value = "";
 
     console.log("sending messages to backend:", chatHistory);
+    console.log("substep_flags:", substep_flags)
+    console.log("newPageLoaded:", newPageLoaded);
     const res = await fetch("/tellerbot", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -364,6 +367,7 @@ async function sendMessage(newPageLoaded = false, substepUpdated = false, overri
     data.action.forEach((act) => {
         if (!act || typeof act !== "object") return;
 
+        // TELLER SPECIFIC
         // 1) Show any immediate reply first so users see it before navigation
         if (act.immediate_reply) {
         appendMessage("assistant", act.immediate_reply);
@@ -395,6 +399,9 @@ async function sendMessage(newPageLoaded = false, substepUpdated = false, overri
 
 // runs only once when chatbot.html is first rendered in the browser (i.e., when the iframe is inserted into the DOM and loads the chatbot page).
 window.addEventListener("DOMContentLoaded", () => {
+    let currentPage = window.parent.location.pathname.split("/").pop();
+    console.log("Current page:", currentPage);
+
     // Activate collapse logic
     setupChatCollapse(); 
 
@@ -439,7 +446,6 @@ window.addEventListener("DOMContentLoaded", () => {
         sendMessage(true);  // ✅ Clean, unified resume
     }
 
-
     // Restore chatbox and history
     for (const m of chatHistory) appendMessage(m.role, m.content, true); // Re-render chat history
     const input = document.getElementById("chat-input");
@@ -452,25 +458,16 @@ window.addEventListener("DOMContentLoaded", () => {
 
     // If the current page is "send_to_alex.html", set up event listeners for the parent form fields
     // This is to ensure that the chatbot can update the substep flags when the elements got selects
-    if (window.parent.location.pathname.endsWith("send_to_alex.html")) {
-    const parentDoc = window.parent.document;
+    if (window.parent.location.pathname.endsWith("pay_bell.html") || window.parent.location.pathname.endsWith("send_to_alex.html")) {
+        console.log("Setting up event listeners for pay_bell.html");
+        let parentDoc = window.parent.document;
+        parentDoc.querySelector("#from-account")?.addEventListener("change", () => {
+            sendMessage(newPageLoaded = true);
+        });
 
-    const accountEl = parentDoc.querySelector("#from-account");
-    const amountEl = parentDoc.querySelector("#amount");
-
-    function checkAndSendIfComplete() {
-        const accountReady = accountEl && accountEl.value !== "instruction";
-        const amountReady = amountEl && parseFloat(amountEl.value) > 0;
-
-        if (accountReady && amountReady) {
-            console.log("Both account and amount selected — sending message.");
-            // Both account and amount selected — sending message.
-            sendMessage(substepUpdated = true);
-        }
-    }
-
-    accountEl?.addEventListener("change", checkAndSendIfComplete);
-    amountEl?.addEventListener("change", checkAndSendIfComplete);
+        parentDoc.querySelector("#amount")?.addEventListener("change", () => {
+            sendMessage(newPageLoaded = true);
+        });
     }
 });
 
@@ -478,6 +475,7 @@ window.addEventListener("DOMContentLoaded", () => {
 window.addEventListener("message", (event) => {
     const { instruction, text } = event.data;
     if (instruction === "log" && typeof text === "string") {
+        console.log("Received log message from parent:", text);
         logUserAction(text);
         // console.log("Calling sendMessage() because of log instruction");
         // sendMessage(true, false, null)

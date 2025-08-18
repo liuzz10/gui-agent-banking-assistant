@@ -39,11 +39,11 @@ client = AzureOpenAI(
 
 
 CLICK_ETRANSFER_BTN_PROMPT = '''
-You are helping the user transfer money. Your job is to guide the user to click the "e-Transfer" tab on the top right of the website. The button is highlighted in yellow and labeled "e-Transfer". If the user asks questions about the button (location, color, label, or other details), you should answer clearly. Do not exceed 80 characters or 1 sentence in your reply.
+You are helping the user transfer money. Your job is to guide the user to click the "e-Transfer" tab on the top of the website. The button is highlighted in yellow and labeled "e-Transfer". If the user asks questions about the button (location, color, label, or other details), you should answer clearly. Do not exceed 80 characters or 1 sentence in your reply.
 '''
 
 CLICK_ETRANSFER_BTN_PROMPT_FRANK = '''
-You are helping the user transfer money. Your job is to click the "e-Transfer" tab on the top right of the website for the user. The button is highlighted in yellow and labeled "e-Transfer". If the user asks questions about the button (location, color, label, or other details), you should answer clearly. Do not exceed 80 characters or 1 sentence in your reply.
+You are helping the user transfer money. Your job is to click the "e-Transfer" tab on the top of the website for the user. The button is highlighted in yellow and labeled "e-Transfer". If the user asks questions about the button (location, color, label, or other details), you should answer clearly. Do not exceed 80 characters or 1 sentence in your reply.
 '''
 
 CHECK_TRANSFEREE_PROMPT = '''
@@ -88,7 +88,7 @@ The user is on the last step to e-transfer money. Your goal is to guide the user
 '''
 
 INTENT_PROMPT = '''
-You are a helpful banking assistant. Your job is to identify the user's goal. Response a goal from e_transfer (to send people money) or check_activity (check account activity/balance or download statement).
+You are a helpful banking assistant. Your job is to identify the user's goal. Response a goal from e_transfer (to send people money), check_activity (check account activity/balance or download statement) or pay_bill (pay bill to some company or organization).
 If the user's goal is clear, reply with exactly one of the intent names above.
 If the user's goal is unclear, ambiguous, or missing, respond with exactly: clarification_required.
 Do not guess. Do not explain your choice. Do not include any punctuation or extra words.
@@ -97,7 +97,7 @@ Do not guess. Do not explain your choice. Do not include any punctuation or extr
 INTENT_CLARIFICATION_PROMPT = """
 The user’s intent is unclear. Your job is to ask a short, polite follow-up question that will help determine whether the user wants to:
 - e_transfer
-- pay_bills
+- pay_bill
 - check_balance
 
 You must respond with **a single, clear question**, no longer than 20 words. Do not guess the user's intent. Only ask one question at a time.
@@ -155,7 +155,6 @@ Rules:
 - Never guess. If unsure, ask again.
 - Keep replies short and conversational.
 '''
-
 
 SEND_MONEY_PROMPT_FRANK = '''
 You are a helpful banking assistant.
@@ -224,7 +223,7 @@ Respond with exactly one word:
 - no
 - unclear
 
-Do NOT explain or add punctuation.
+Do NOT explain or add punctuation. Do NOT include any extra words.
 """
 
 # Stage 1: Classify or ask for clarification
@@ -241,7 +240,6 @@ CLARIFICATION_PROMPT = (
     "that will help determine whether the user wants to: {label_list}."
 )
 
-
 # --- Back-intent classifier prompt (binary) ---
 GO_BACK_PROMPT = """
 You are a binary classifier. Decide if the user is asking to go back to the previous screen in the app.
@@ -257,6 +255,7 @@ Conversation (latest message last):
 {messages}
 Answer:
 """
+
 
 def wants_navigation_back(messages) -> bool:
     """
@@ -275,7 +274,7 @@ e_transfer_tutor = OrderedDict({
     "index.html": {
         "substeps": OrderedDict({
             "click_etransfer": {
-                "immediate_reply": "Click the 'e-Transfer' button on the top right of the page",
+                "immediate_reply": "Click the 'e-Transfer' button on the top of the page",
                 "prompt": CLICK_ETRANSFER_BTN_PROMPT,
                 "action": [{"action": "highlight", "selector": "#nav-transfer"}],  # Grace will highlight the button for the user
                 "desc": "Clicked the 'E-transfer' tab"
@@ -374,16 +373,223 @@ e_transfer_teller = OrderedDict({
     "send_to_alex.html": {
         "substeps": OrderedDict({
             "choose_account": {
-                "immediate_reply": "Which account do you want to transfer from? And how much?",
-                "prompt": SEND_MONEY_PROMPT_FRANK,
-                "dynamic_handler": "collect_then_act",
-                "state": {"account": None, "amount": None, "confirmed": None},
-                "action": [{"action": "click", "selector": "#send-button", "immediate_reply": "Thank you for confirming. I'm clicking 'Continue' for you."}], # After everything's confirmed (the last step)
-                "desc": "Filled in 'from account', amount and clicked 'Continue'",
+                "immediate_reply": "Which account do you want to send money from?",
+                "dynamic_handler": "selection_handler",
+                "action": [{"action": "highlight", "selector": "#from-account"}],
+                "options": {
+                    "chequing account": {
+                        "action": [{"action": "select", "selector": "#from-account", "value": "chequing", "immediate_reply": "I'm selecting your Chequing account for the payment."}],
+                    },
+                    "savings account": {
+                        "action": [{"action": "select", "selector": "#from-account", "value": "savings", "immediate_reply": "I'm selecting your Savings account for the payment."}],
+                    },
+                },
+                "desc": "Filled in 'from account'",
+                "completion_condition": "account_chosen",  # flag name
+            },
+            "enter_amount": {
+                "immediate_reply": "How much do you want to send?",
+                "dynamic_handler": "fill_handler",
+                "field": "Amount ($):",
+                "value": "Numbers only, it could be a whole number or a decimal.", 
+                "action": [{"action": "fill", "selector": "#amount", "immediate_reply": "I'm filling in the amount for you."}],
+                "desc": "Filled in amount",
+                "completion_condition": "amount_entered",  # flag name
+            },
+            "confirm": {
+                "immediate_reply": "Okay do you want to continue with the payment or cancel it?",
+                "dynamic_handler": "selection_handler",
+                "options": {
+                    "cancel": {
+                        "action": [{"action": "click", "selector": "#cancel-button", "immediate_reply": "I'm clicking 'Cancel' for you."}],
+                    },
+                    "continue": {
+                        "action": [{"action": "click", "selector": "#send-button", "immediate_reply": "I'm clicking 'Continue' for you."}],
+                    },
+                },
+            }
+        }),  
+    },
+    "confirm_transfer.html": {
+        "substeps": OrderedDict({
+            "confirm_transfer": {
+                "immediate_reply": "Because this is the final step, you need to take the action yourself. Please double-check the information and click 'Confirm' to complete the transfer, or 'Cancel' if you want to stop.",
+                "prompt": CONFIRM_TRANSFER_PROMPT,
+                "desc": "Clicked 'Confirm'",
+                "action": [{"action": "highlight", "selector": "#confirm-button, #cancel-button"}]  # Frank will click the button for the user
             }
         })
     },
-    "confirm_transfer.html": {
+    "success.html": {
+        "substeps": OrderedDict({
+            "success": {
+                "immediate_reply": "Anything else I can help you with?",
+                "selector": "",
+                "prompt": "The user has successfully completed the transfer. Ask if they have more questions or click 'Home' to return to the homepage. Do not exceed 50 characters.",
+                "desc": ""
+            }
+        })
+    }
+})
+
+# Grace - Alex
+pay_bill_tutor = OrderedDict({
+    "index.html": {
+        "substeps": OrderedDict({
+            "click_etransfer": {
+                "immediate_reply": "Click the 'Pay Bills' button on the top right of the page",
+                "prompt": CLICK_ETRANSFER_BTN_PROMPT,
+                "action": [{"action": "highlight", "selector": "#nav-paybill"}],  # Grace will highlight the button for the user
+                "desc": "Clicked the 'Pay Bill' tab"
+            }
+        })
+    },
+    "pay_bill.html": {
+        "substeps": OrderedDict({
+            "select_recipient": {
+                "immediate_reply": "Please select one of the saved payees or add a new payee.",
+                "action": [],
+                "prompt": CHECK_TRANSFEREE_PROMPT,
+                "desc": "Selected the recipient"
+            }
+        })
+    },
+    "pay_bell.html": {
+        "substeps": OrderedDict({
+            "choose_account": {
+                "immediate_reply": "Please choose the account you want to transfer from.",
+                "action": [{"action": "highlight", "selector": "#from-account"}],  # Grace will highlight the account selector for the user
+                "completion_condition": "account_chosen",  # flag name
+                "desc": "Selected the account to transfer from"
+            },
+            "enter_amount": {
+                "immediate_reply": "Now enter the amount.",
+                "action": [{"action": "highlight", "selector": "#amount"}],  # Grace will highlight the amount input for the user
+                "completion_condition": "amount_entered",
+                "desc": "Entered the amount to transfer"
+            },
+            "continue": {
+                "immediate_reply": "Select if you want to set up auto-pay every month and click 'Continue' if everything looks good.",
+                "action": [{"action": "highlight", "selector": "#auto-pay, #send-button"}],  # Grace will highlight the continue button for the user
+                "completion_condition": "continue_clicked",
+                "desc": "Clicked 'Continue'"
+            },
+        }),
+    },
+    "confirm_bill.html": {
+        "substeps": OrderedDict({
+            "confirm_transfer": {
+                "immediate_reply": "Please double-check the information and click 'Confirm' to complete the transfer, or 'Cancel' if you want to stop.",
+                "selector": "#confirm-button, #cancel-button",
+                "action": [{"action": "highlight", "selector": "#confirm-button, #cancel-button"}],  # Grace will highlight the confirm and cancel buttons for the user
+                "prompt": CONFIRM_TRANSFER_PROMPT,
+                "desc": "Clicked 'Confirm'"
+            }
+        })
+    },
+    "success.html": {
+        "substeps": OrderedDict({
+            "success_message": {
+                "immediate_reply": "Anything else I can help you with?",
+                "selector": "",
+                "prompt": "The user has successfully completed the transfer. Ask if they have more questions or click 'Home' to return to the homepage. Do not exceed 50 characters.",
+                "desc": ""
+            }
+        })
+    }
+})
+
+pay_bill_teller = OrderedDict({
+    "index.html": {
+        "substeps": OrderedDict({
+            "click_etransfer": {
+                "immediate_reply": "I'm clicking the 'Pay Bills' button for you and you will land on the e-transfer page shortly.",
+                "prompt": CLICK_ETRANSFER_BTN_PROMPT,
+                "desc": "Clicked the 'Pay Bills' tab",
+                "action": [{"action": "click", "selector": "#nav-paybill"}],  # Frank will click the button for the user
+            }
+        })
+    },
+    "pay_bill.html": {
+        "substeps": OrderedDict({
+            "select_recipient": {
+                "desc": "Selected the recipient",
+                "immediate_reply": "Who would you like to pay your bill to?",
+                "dynamic_handler": "classification_handler",
+                "prompt": "The user is on the page of selecting a recipient of a potential bill payment. There are 3 recipients on the page. Your goal is to guide the user through selecting the intended recipient.",
+                "options": {
+                    "Bell": {
+                        "action": [{"action": "highlight", "selector": "#payee-bell", "immediate_reply": "Can you confirm that you're paying your bill to Bell?"}]
+                    },
+                    "BC Hydro": {},
+                    "Telus Mobile": {}
+                },
+                "completion_condition": "select_recipient",  # flag name
+            },
+            "confirm_recipient": {
+                "dynamic_handler": "confirmation_handler",
+                "action": [{"action": "click", "selector": "#payee-bell", "immediate_reply": "Thank you for confirming. I'm selecting Bell for you."}],  # You can generate this dynamically too
+                "completion_condition": "confirm_recipient"
+            }
+        })
+    },
+    "pay_bell.html": {
+        "substeps": OrderedDict({
+            "choose_account": {
+                "immediate_reply": "Which account do you want to pay from?",
+                "dynamic_handler": "selection_handler",
+                "action": [{"action": "highlight", "selector": "#from-account"}],
+                "options": {
+                    "chequing account": {
+                        "action": [{"action": "select", "selector": "#from-account", "value": "chequing", "immediate_reply": "I'm selecting your Chequing account for the payment."}],
+                    },
+                    "savings account": {
+                        "action": [{"action": "select", "selector": "#from-account", "value": "savings", "immediate_reply": "I'm selecting your Savings account for the payment."}],
+                    },
+                },
+                "desc": "Filled in 'from account'",
+                "completion_condition": "account_chosen",  # flag name
+            },
+            "enter_amount": {
+                "immediate_reply": "How much do you want to pay?",
+                "dynamic_handler": "fill_handler",
+                "field": "Amount ($):",
+                "value": "Numbers only, it could be a whole number or a decimal.", 
+                "action": [{"action": "fill", "selector": "#amount", "immediate_reply": "I'm filling in the amount for you."}],
+                "desc": "Filled in amount",
+                "completion_condition": "amount_entered",  # flag name
+            },
+            # "setup_autopay": {
+            #     "immediate_reply": "Do you want to set up auto-pay?",
+            #     "dynamic_handler": "checkbox_handler",
+            #     "options": {
+            #         "yes": {
+            #             "action": [{"action": "check", "selector": "#auto-pay", "immediate_reply": "I'm setting up auto-pay for you."}],
+            #             "desc": "Set up auto-pay"
+            #         },
+            #         "no": {
+            #             "action": [{"action": "uncheck", "selector": "#auto-pay", "immediate_reply": "No problem, I won't set up auto-pay."}],
+            #             "desc": "Did not set up auto-pay"
+            #         }
+            #     },
+            #     "desc": "Set up auto-pay",
+            #     "completion_condition": "autopay_setup",  # flag name
+            # },
+            "confirm": {
+                "immediate_reply": "Okay do you want to continue with the payment or cancel it?",
+                "dynamic_handler": "selection_handler",
+                "options": {
+                    "cancel": {
+                        "action": [{"action": "click", "selector": "#cancel-button", "immediate_reply": "I'm clicking 'Cancel' for you."}],
+                    },
+                    "continue": {
+                        "action": [{"action": "click", "selector": "#send-button", "immediate_reply": "I'm clicking 'Continue' for you."}],
+                    },
+                },
+            }
+        }),  
+    },
+    "confirm_bill.html": {
         "substeps": OrderedDict({
             "confirm_transfer": {
                 "immediate_reply": "Because this is the final step, you need to take the action yourself. Please double-check the information and click 'Confirm' to complete the transfer, or 'Cancel' if you want to stop.",
@@ -546,6 +752,8 @@ check_activity_teller = OrderedDict({
 flows = {
     "e_transfer": {"grace": e_transfer_tutor, "frank": e_transfer_teller},
     "check_activity": {"grace": check_activity_tutor, "frank": check_activity_teller},
+    "pay_bill": {"grace": pay_bill_tutor, "frank": pay_bill_teller},
+
 }
 
 # Utility function to merge consecutive messages with the same role. GPT expects alternating roles.
@@ -705,7 +913,8 @@ def yesno_classification_handler(new_page_loaded, messages, substep, intent):
         }
 
     # 2. Classify user response
-    classification = api_call(YESNO_CLASSIFIER_PROMPT, messages)
+    recent_messages = messages[-2:] if len(messages) >= 2 else messages
+    classification = api_call(YESNO_CLASSIFIER_PROMPT, recent_messages)
     print("Classification result:", classification)
     # print("Substep:", substep)
 
@@ -724,7 +933,7 @@ def yesno_classification_handler(new_page_loaded, messages, substep, intent):
     else:
         return {
             "intent": intent,
-            "botMessage": "Sorry, could you please clarify? Do you want to download your statement?"
+            "botMessage": "Sorry, could you please clarify?"
         }
 
 # Grace - Alex
@@ -778,6 +987,171 @@ def classification_handler(substep, messages, intent, new_page_loaded=False):
         "botMessage": "Sorry, I couldn’t understand. Can you tell me what you want to do?"
     }
 
+# Stage 1: Classify or ask for clarification
+SELECTION_PROMPT = (
+    "The bot is asking the user to select one from a few options. Based on the conversation so far, classify the user's selection into one of the following options: "
+    "'{label_list}'.\n\n"
+    "If the user's selection is clear, reply with exactly one of the option names.\n"
+    "If the user's selection is unclear, ambiguous, or missing, respond with exactly: clarification_required."
+    "Do not add any punctuation or extra words other than the option name or 'clarification_required'."
+)
+
+SELECTION_CLARIFICATION_PROMPT = (
+    "The user’s selection is unclear. Your job is to ask a short, polite follow-up question "
+    "that will help determine whether the user wants to choose: {label_list}."
+)
+
+def selection_handler(substep, messages, intent, new_page_loaded):
+    """
+    Handles selection of options from a list, e.g., account selection.
+    """
+    print("====Selection handler called")
+    # 1. Ask the selection question if newPageLoaded
+    if new_page_loaded:
+        print("New page loaded, asking selection question...")
+        return {
+            "intent": intent,
+            "botMessage": substep["immediate_reply"]
+        }
+    
+    options = substep.get("options", {})
+    if not options:
+        raise ValueError("Substep is missing 'options' for selection.")
+    label_list = "', '".join(options.keys())
+
+    # 2. Classify user response
+    print(f"Classifying what user wants with options: {label_list}")
+    recent_messages = messages[-1:] if len(messages) >= 1 else messages
+    selection = api_call(SELECTION_PROMPT.format(label_list=label_list), recent_messages)
+    print("Selection result:", selection)
+
+    if selection == "clarification_required":
+        clarification_prompt = CLARIFICATION_PROMPT.format(label_list=label_list)
+        clarification_question = api_call(clarification_prompt, messages)
+
+        return {
+            "intent": intent,
+            "action": "",
+            "botMessage": clarification_question,
+        }
+
+    if selection in options:
+        print(f"User selected: {selection}")
+        option = options[selection.lower()]
+        return {
+            "intent": intent,
+            "action": option.get("action", []),
+            "substep_flags": {substep.get("completion_condition"): True}
+        }
+    
+    return {
+        "intent": intent,
+        "botMessage": "Sorry, I couldn’t understand your choice. Could you please tell me what you want to select?"
+    }
+
+FILL_PROMPT = '''You are a financial assistant helping a user fill in a field on a banking website.
+The field in question is: {field}.
+The value has to be a: {value}.
+The user has provided the following message: "{user_message}"
+Your task is to extract the relevant value from the user's message and return it. 
+If the user message is not clear, return "clarification_required".
+You should only return a number value or "clarification_required", nothing else.
+'''
+
+FILL_CLARIFICATION_PROMPT = (
+    "The user’s number is unclear. Your job is to ask a short, polite follow-up question "
+    "that will help determine whether the user wants to choose: {label_list}."
+)
+
+def extract_number(text: str) -> str:
+    """Return the first number found in text, or '' if none."""
+    if not text:
+        return ""
+    match = re.search(r"\d+(?:\.\d+)?", text.replace(",", ""))
+    return match.group(0) if match else ""
+
+
+def fill_handler(substep, messages, intent, new_page_loaded):
+    """
+    Handles filling in a field, e.g., entering an amount.
+    """
+    print("====Fill handler called")
+    # 1. Ask the fill question if newPageLoaded
+    if new_page_loaded:
+        print("New page loaded, asking immediate reply...")
+        return {
+            "intent": intent,
+            "botMessage": substep["immediate_reply"]
+        }
+
+    # 2. Classify user response
+    # messages is a list of dicts like {"role": "user", "content": "..."}
+    recent_messages = messages[-1:] if len(messages) >= 1 else messages
+    print("User message:", recent_messages)
+    
+    filled_value = api_call(FILL_PROMPT.format(field=substep.get("field", ""), value=substep.get("value", ""), user_message=recent_messages), recent_messages)
+    print("Filled value:", filled_value)
+
+    # extract just the number
+    filled_value = extract_number(filled_value)
+    if not filled_value:
+        # ask for clarification if no number found
+        clarification_question = api_call(
+            CLARIFICATION_PROMPT.format(label_list="a dollar amount"),
+            messages
+        )
+        return {
+            "intent": intent,
+            "action": "",
+            "botMessage": clarification_question,
+        }
+    
+    action = substep.get("action", [])
+    # add the filled value to the action if it requires a value
+    if action :
+        action[0]["value"] = filled_value
+
+    return {
+        "intent": intent,
+        "action": action,
+        "substep_flags": {substep.get("completion_condition"): True},
+    }
+
+def checkbox_handler(substep, messages, intent, new_page_loaded):
+    # 1. Ask the yes/no question if newPageLoaded
+    print("====Yes/No classification handler called")
+    # print("substep", substep)
+    if new_page_loaded:
+        print("New page loaded, asking immediate reply...")
+        return {
+            "intent": intent,
+            "botMessage": substep["immediate_reply"]
+        }
+
+    # 2. Classify user response
+    classification = api_call(YESNO_CLASSIFIER_PROMPT, messages)
+    print("Classification result:", classification)
+    # print("Substep:", substep)
+
+    if classification.lower() == "yes":
+        return {
+            "intent": intent,
+            "action": substep["options"]["yes"]["action"],
+            "substep_flags": {substep.get("completion_condition"): True}
+        }
+    elif classification.lower() == "no":
+        return {
+            "intent": intent,
+            "action": substep["options"]["no"]["action"],
+            "substep_flags": {substep.get("completion_condition"): True}
+        }
+    else:
+        return {
+            "intent": intent,
+            "botMessage": "Sorry, could you please clarify if you need to set up auto pay?"
+        }
+
+
 def confirmation_handler(substep, messages, intent) -> str:
     """
     Uses GPT to classify a user response as 'yes', 'no', or 'unclear'.
@@ -789,9 +1163,13 @@ def confirmation_handler(substep, messages, intent) -> str:
     Returns:
         One of: "yes", "no", "unclear"
     """
-    print("====Confirmation handler called")
+    print("===Confirmation handler called")
     action_description = substep.get("confirmation_text", "proceed with this action")
-    user_message = messages[-1]["content"] if messages else ""
+    # messages is a list of dicts like {"role": "user", "content": "..."}
+    user_message = next(
+        (m["content"] for m in reversed(messages) if m.get("role") == "user"),
+        ""
+    )
     prompt = f"""
 You are a confirmation assistant helping to interpret whether a user agrees to perform an action.
 
@@ -832,8 +1210,8 @@ Do NOT explain or include any other text.
 def handle_first_incomplete_substep(substeps, substep_flags, messages, intent, new_page_loaded, state={}):
     # Check the completion conditions of each substep
     # and handle the first uncompleted substep
-    print("====Handling first incomplete substep...")
-    print("====substep_flags:", substep_flags)
+    print("===Handling first incomplete substep...")
+    print("===substep_flags:", substep_flags)
     for name, substep in substeps.items():
         condition = substep.get("completion_condition", "") # e.g., "account_chosen"
         print("Checking condition:", condition)
@@ -856,6 +1234,12 @@ def handle_first_incomplete_substep(substeps, substep_flags, messages, intent, n
                 return classification_handler(substep, messages, intent, new_page_loaded)
             elif handler_type == "confirmation_handler":
                 return confirmation_handler(substep, messages, intent)
+            elif handler_type == "selection_handler":
+                return selection_handler(substep, messages, intent, new_page_loaded)
+            elif handler_type == "fill_handler":
+                return fill_handler(substep, messages, intent, new_page_loaded)
+            elif handler_type == "checkbox_handler":
+                return checkbox_handler(substep, messages, intent, new_page_loaded)
             elif handler_type == "collect_then_act":
                 print("Current state:", state)
                 # Step 1: Initial guidance message if state is empty
@@ -909,7 +1293,7 @@ def handle_first_incomplete_substep(substeps, substep_flags, messages, intent, n
 
 # Grace - Alex and Frank - Sam    
 def handle_known_intent(intent, current_page, substep_flags, messages, new_page_loaded, state={}, assistant="grace"):
-    print("====Handling known intent:", intent)
+    print("==Handling known intent:", intent)
     if intent in flows and current_page in flows[intent][assistant]:
         current_step = flows[intent][assistant][current_page]
         substeps = current_step.get("substeps", {})
@@ -1003,20 +1387,20 @@ async def chat(request: Request):
 
     print("====Intent and current_page from frontend:", intent, current_page)
 
-    # 🔙 GPT-powered back-intent check (runs before intent ID)
-    if wants_navigation_back(messages):
-        return {
-            "botMessage": "Okay — going back to the previous page.",
-            "action": [{"action": "navigate", "value": "back"}],
-        }
+    # # 🔙 GPT-powered back-intent check (runs before intent ID)
+    # if wants_navigation_back(messages):
+    #     return {
+    #         "botMessage": "Okay — going back to the previous page.",
+    #         "action": [{"action": "navigate", "value": "back"}],
+    #     }
 
     # 1. Intent Identification
     if not intent:
         # Ask questions until intent is identified
-        print("====Identifying intent...")
+        print("==Identifying intent...")
         intent = api_call(INTENT_PROMPT, messages)
         if intent == "clarification_required":
-            print("====Intent unclear, asking for clarification...")
+            print("==Intent unclear, asking for clarification...")
             follow_up = api_call(INTENT_CLARIFICATION_PROMPT, messages)
             return {
                 "intent": "unknown",
@@ -1024,9 +1408,15 @@ async def chat(request: Request):
                 "botMessage": follow_up,
             }
     
-        # When an intent is identified (either just identified from above block, or passed from the frontend), we need to go to the next step and send the next instruction
+    # When an intent is identified (either just identified from above block, or passed from the frontend), we need to go to the next step and send the next instruction
+    # messages is a list of dicts like {"role": "user", "content": "..."}
+    user_message = next(
+        (m["content"] for m in reversed(messages) if m.get("role") == "user"),
+        ""
+    )
+    print("==User_message:", user_message)
     res = handle_known_intent(intent, current_page, substep_flags, messages, new_page_loaded, state=state, assistant=assistant)
-    print("====Response from handle_known_intent:", res)
+    print("===Response from handle_known_intent:", res)
     return res
 
 ### Another endpoint to add payees

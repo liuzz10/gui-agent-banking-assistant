@@ -191,6 +191,7 @@ function dehighlightAll(lastInstruction = "mark-complete") {
 
 // Log user action to the chat history and sessionStorage
 function logUserAction(text) {
+    console.log("Logging user action:", text);
     appendMessage("user", text);
     chatHistory.push({ role: "user", content: text });
     sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
@@ -285,52 +286,11 @@ function speak(text) {
     speechSynthesis.speak(utterance);
 }
 
-
-// function speak(text) {
-//   if (!('speechSynthesis' in window)) {
-//     console.warn("This browser does not support speech synthesis.");
-//     return;
-//   }
-
-//   if (!voicesReady) {
-//     console.warn("Voices not ready yet — skipping TTS:", text);
-//     return;
-//   }
-
-//   const utterance = new SpeechSynthesisUtterance(text);
-//   utterance.lang = 'en-US';
-
-//   const voices = speechSynthesis.getVoices();
-//   const voice = voices.find(v => v.lang === 'en-US' && v.name.includes("Google"));
-//   if (voice) {
-//     utterance.voice = voice;
-//     console.log("Using voice:", voice.name);
-//   } else {
-//     console.log("No Google US English voice found — using default en-US");
-//   }
-
-//   utterance.onstart = function() {
-//     if (listening && recognition) {
-//       console.log("Pausing recognition during TTS");
-//       recognition.stop();
-//     }
-//   };
-
-//   utterance.onend = function() {
-//     if (listening && recognition) {
-//       console.log("Resuming recognition after TTS");
-//       recognition.start();
-//     }
-//   };
-
-//   speechSynthesis.speak(utterance);
-// }
-
-
 // sendMessage() fires when: 
 // 1) The user types a message (e.g., "what's next?") 
 // 2) the page auto-resumes on load (newPageLoaded=True)
-async function sendMessage(newPageLoaded = false, substepUpdated = false, overrideTranscript = null) {
+// 3) a field is updated (e.g., "from account" or "amount" in the transfer process)
+async function sendMessage(newPageLoaded = false, overrideTranscript = null) {
     console.log("sendMessage called", { newPageLoaded});
     const input = document.getElementById("chat-input");
     const message = newPageLoaded ? "resuming" : (overrideTranscript ? overrideTranscript : input.value.trim()); // Get user input or use overrideMessage if auto is true.
@@ -339,8 +299,9 @@ async function sendMessage(newPageLoaded = false, substepUpdated = false, overri
     substep_flags = JSON.parse(sessionStorage.getItem("substep_flags") || "{}");
     console.log("substep_flags:", substep_flags); 
 
-    if (currentPage === "send_to_alex.html") {
-    substep_flags = updateSubstepFlagsForTransferSomeone();
+    // This is used to track the user's progress in the transfer process.
+    if (currentPage === "send_to_alex.html" || currentPage === "pay_bell.html") {
+        substep_flags = updateSubstepFlagsForTransferSomeone();
     }
 
     // Append the message to the chat history and display it
@@ -351,13 +312,13 @@ async function sendMessage(newPageLoaded = false, substepUpdated = false, overri
 
     input.value = "";
 
+    console.log("sending messages to backend:", chatHistory);
     const res = await fetch("/tutorbot", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
         messages: chatHistory,
         newPageLoaded,
-        substepUpdated,
         intent,
         currentPage,
         substep_flags,  // ✅ Send subtask progress
@@ -367,7 +328,6 @@ async function sendMessage(newPageLoaded = false, substepUpdated = false, overri
 
     const data = await res.json();
     console.log("data from backend", data)
-    // console.log("flags", data.substep_flags);
 
     intent = data.intent
     botMessage = data.botMessage || "";
@@ -480,18 +440,24 @@ window.addEventListener("DOMContentLoaded", () => {
 
     // If the current page is "send_to_alex.html", set up event listeners for the parent form fields
     // This is to ensure that the chatbot can update the substep flags when the user selects
-    if (window.parent.location.pathname.endsWith("send_to_alex.html")) {
-    const parentDoc = window.parent.document;
-    console.log("parentDoc", parentDoc);
+    if (window.parent.location.pathname.endsWith("send_to_alex.html") || window.parent.location.pathname.endsWith("pay_bell.html")) {
+        let parentDoc = window.parent.document;
+        console.log("parentDoc", parentDoc);
 
-    parentDoc.querySelector("#from-account")?.addEventListener("change", () => {
-        sendMessage(substepUpdated = true);
-    });
+        parentDoc.querySelector("#from-account")?.addEventListener("change", () => {
+            sendMessage(newPageLoaded = true);
+        });
 
-    parentDoc.querySelector("#amount")?.addEventListener("change", () => {
-        sendMessage(substepUpdated = true);
-    });
+        parentDoc.querySelector("#amount")?.addEventListener("change", () => {
+            sendMessage(newPageLoaded = true);
+        });
+    }
 
+    if (window.parent.location.pathname.endsWith("pay_bell.html")) {
+        let parentDoc = window.parent.document;
+        parentDoc.querySelector("#auto-pay")?.addEventListener("change", () => {
+            sendMessage(newPageLoaded = true);
+        });
     }
 });
 
