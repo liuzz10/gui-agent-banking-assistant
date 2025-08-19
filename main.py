@@ -1421,18 +1421,21 @@ async def chat(request: Request):
 
 ### Another endpoint to add payees
 
-payees = {}  # key: user_id or session_id, value: list of payees
+# Global list (prototype)
+payees = [
+    {"name": "BC Hydro", "account": "73738374622"},
+    {"name": "Telus Mobile", "account": "36379939374"},
+]
 
 class Payee(BaseModel):
     name: str
     account: str
-    user_id: str  # or session_id
 
 @app.post("/api/add_payee")
 async def add_payee(payee: Payee):
-    user_payees = payees.setdefault(payee.user_id, [])
-    user_payees.append({
-        "name": payee.name,
-        "account": payee.account
-    })
-    return {"status": "success", "payees": user_payees}
+    payees.append({"name": payee.name, "account": payee.account})
+    return {"status": "success", "payees": payees}
+
+@app.get("/api/payees")
+async def list_payees():
+    return {"payees": payees}
