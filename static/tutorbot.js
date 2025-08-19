@@ -63,8 +63,6 @@ function setupKeyboardToggle() {
   });
 }
 
-
-
 // This function toggles the listening state of the chatbot.
 function toggleListening() {
   const isChecked = document.getElementById("listen-checkbox").checked;
@@ -111,29 +109,47 @@ function toggleListening() {
 // Function to get the summary of the last user message based on the current page
 // This function is called when the chatbot detects a confirmation or success page.
 function getSummary() {
-    console.log("getSummary called for page:", currentPage);
-    const patterns = {
-    "confirm_transfer.html": { match: "You plan to send", emoji: /^✅\s*/ },
-    "success.html": { match: "You successfully transfered", emoji: /^🎉\s*/ }
-    };
-    const pattern = patterns[currentPage];
-    if (!pattern) {
+  console.log("getSummary called for page:", currentPage);
+
+  const patterns = {
+    "confirm_transfer.html": {
+      matches: ["You plan to send"],
+      strip: /^\s*✅\s*/    // remove leading check if present
+    },
+    "success.html": {
+      // support both transfer success and payee-added success
+      matches: ["You successfully transfered", "Payee added"],
+      strip: /^\s*[🎉✅]\s*/ // remove leading 🎉 or ✅
+    },
+    "payee_added.html": {
+      // support both transfer success and payee-added success
+      matches: ["Payee added"],
+      strip: /^\s*[🎉✅]\s*/ // remove leading 🎉 or ✅
+    }
+  };
+
+  const pattern = patterns[currentPage];
+  if (!pattern) {
     console.log("No pattern defined for this page.");
     return "";
-    }
-    // Look for the last user message that matches
-    for (let i = chatHistory.length - 1; i >= 0; i--) {
+  }
+
+  // Find the most recent user message that contains any of the match phrases
+  for (let i = chatHistory.length - 1; i >= 0; i--) {
     const m = chatHistory[i];
-    console.log("Checking message:", m);
-    if (m.role === "user" && m.content.includes(pattern.match)) {
-        const cleanedText = m.content.replace(pattern.emoji, '');
-        console.log("Found matching message:", cleanedText);
-        return cleanedText;
+    if (m.role !== "user") continue;
+
+    if (pattern.matches.some(txt => m.content.includes(txt))) {
+      const cleaned = m.content.replace(pattern.strip, "");
+      console.log("Found matching message:", cleaned);
+      return cleaned;
     }
-    }
-    console.log("No matching message found.");
-    return "";
+  }
+
+  console.log("No matching message found.");
+  return "";
 }
+
 
 // Append a message to the chatbox
 // This function is called when the user sends a message or the assistant responds.
@@ -147,15 +163,7 @@ function appendMessage(role, text, suppressTTS = false) {
 
     // Speak if the message is from assistant and on the listening mode
     if (role === "assistant" && listening && !suppressTTS) {
-    if (currentPage === "confirm_transfer.html") {
-        console.log("Confirm transfer page detected, checking for summary");
-        const userLog = getSummary();
-        if (userLog) {
-        speak(userLog);
-        }
-    }
-
-    if (currentPage === "success.html") {
+    if (currentPage === "confirm_transfer.html" || currentPage === "confirm_bill.html" || currentPage === "payee_added.html" || currentPage === "success.html") {
         const userLog = getSummary();
         if (userLog) {
         speak(userLog);
@@ -222,6 +230,29 @@ function updateSubstepFlagsForTransferSomeone() {
 
     return substep_flags;
 }
+
+function updateSubstepFlagsForAddPayeeForm() {
+  const substep_flags = {};
+
+  try {
+    const parentDoc = window.parent.document;
+    const payee = parentDoc.querySelector("#payee-name");
+    const account = parentDoc.querySelector("#account-number");
+
+    if (payee && payee.value.trim() !== "") {
+      substep_flags.name_filled = true;
+    }
+
+    if (account && /^\d{11}$/.test(account.value.trim())) {
+      substep_flags.account_filled = true;
+    }
+  } catch (e) {
+    console.warn("Unable to access parent form fields:", e);
+  }
+
+  return substep_flags;
+}
+
 
 
 
@@ -294,6 +325,7 @@ async function sendMessage(newPageLoaded = false, overrideTranscript = null) {
     console.log("sendMessage called", { newPageLoaded});
     const input = document.getElementById("chat-input");
     const message = newPageLoaded ? "resuming" : (overrideTranscript ? overrideTranscript : input.value.trim()); // Get user input or use overrideMessage if auto is true.
+    console.log("message:", message);
     if (!message && !newPageLoaded) return; // Don't send empty messages unless the page just loaded.
     
     substep_flags = JSON.parse(sessionStorage.getItem("substep_flags") || "{}");
@@ -303,6 +335,9 @@ async function sendMessage(newPageLoaded = false, overrideTranscript = null) {
     if (currentPage === "send_to_alex.html" || currentPage === "pay_bell.html") {
         substep_flags = updateSubstepFlagsForTransferSomeone();
     }
+    if (currentPage === "add_payee.html") {
+        substep_flags = updateSubstepFlagsForAddPayeeForm();
+    }   
 
     // Append the message to the chat history and display it
     if (!newPageLoaded) {
@@ -438,7 +473,7 @@ window.addEventListener("DOMContentLoaded", () => {
     //   sendMessage(newPageLoaded = true);
     // }
 
-    // If the current page is "send_to_alex.html", set up event listeners for the parent form fields
+    // Set up event listeners for the parent form fields
     // This is to ensure that the chatbot can update the substep flags when the user selects
     if (window.parent.location.pathname.endsWith("send_to_alex.html") || window.parent.location.pathname.endsWith("pay_bell.html")) {
         let parentDoc = window.parent.document;
@@ -456,6 +491,18 @@ window.addEventListener("DOMContentLoaded", () => {
     if (window.parent.location.pathname.endsWith("pay_bell.html")) {
         let parentDoc = window.parent.document;
         parentDoc.querySelector("#auto-pay")?.addEventListener("change", () => {
+            sendMessage(newPageLoaded = true);
+        });
+    }
+
+    // Using change instead of input for the payee form to avoid too many events
+    if (window.parent.location.pathname.endsWith("add_payee.html")) {
+        let parentDoc = window.parent.document;
+        parentDoc.querySelector("#payee-name")?.addEventListener("change", () => {
+            sendMessage(newPageLoaded = true);
+        });
+        
+        parentDoc.querySelector("#account-number")?.addEventListener("change", () => {
             sendMessage(newPageLoaded = true);
         });
     }
@@ -500,7 +547,7 @@ if (recognition) {
     }
     const transcript = event.results[0][0].transcript;
     console.log("You said:", transcript);
-    sendMessage(false, false, transcript);
+    sendMessage(false, transcript);
     };
 
     recognition.onerror = function(event) {

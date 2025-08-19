@@ -7,6 +7,7 @@ let speech_rate = 0.9;
 const waitToTakeAction = 5000;
 const welcomeMessage = "Hi! I'm Sam. Tell me what you want to do, for example, e-transfer, and I'll take care of it.";
 let currentPage = window.parent.location.pathname.split("/").pop();
+let lastHighlightedSelector = null;
 
 // This function sets the chat UI to be collapsed or expanded based on the isCollapsed parameter. (for the ease of voice control)
 function setChatCollapsed(isCollapsed) {
@@ -63,8 +64,6 @@ function setupKeyboardToggle() {
   });
 }
 
-
-
 // This function toggles the listening state of the chatbot.
 function toggleListening() {
   const isChecked = document.getElementById("listen-checkbox").checked;
@@ -118,28 +117,45 @@ function performAction(selector, action, value = null) {
 // Function to get the summary of the last user message based on the current page
 // This function is called when the chatbot detects a confirmation or success page.
 function getSummary() {
-    console.log("getSummary called for page:", currentPage);
-    const patterns = {
-        "confirm_transfer.html": { match: "You plan to send", emoji: /^✅\s*/ },
-        "success.html": { match: "You successfully", emoji: /^🎉\s*/ },
-        "confirm_bill.html": { match: "You plan to pay",emoji: /^✅\s*/ },
-    };
-    const pattern = patterns[currentPage];
-    if (!pattern) {
-        console.log("No pattern defined for this page.");
-        return "";
+  console.log("getSummary called for page:", currentPage);
+
+  const patterns = {
+    "confirm_transfer.html": {
+      matches: ["You plan to send"],
+      strip: /^\s*✅\s*/    // remove leading check if present
+    },
+    "success.html": {
+      // support both transfer success and payee-added success
+      matches: ["You successfully transfered", "Payee added"],
+      strip: /^\s*[🎉✅]\s*/ // remove leading 🎉 or ✅
+    },
+    "payee_added.html": {
+      // support both transfer success and payee-added success
+      matches: ["Payee added"],
+      strip: /^\s*[🎉✅]\s*/ // remove leading 🎉 or ✅
     }
-    // Look for the last user message that matches
-    for (let i = chatHistory.length - 1; i >= 0; i--) {
-    const m = chatHistory[i];
-    if (m.role === "user" && m.content.includes(pattern.match)) {
-        const cleanedText = m.content.replace(pattern.emoji, '');
-        console.log("Found matching message:", cleanedText);
-        return cleanedText;
-    }
-    }
-    console.log("No matching message found.");
+  };
+
+  const pattern = patterns[currentPage];
+  if (!pattern) {
+    console.log("No pattern defined for this page.");
     return "";
+  }
+
+  // Find the most recent user message that contains any of the match phrases
+  for (let i = chatHistory.length - 1; i >= 0; i--) {
+    const m = chatHistory[i];
+    if (m.role !== "user") continue;
+
+    if (pattern.matches.some(txt => m.content.includes(txt))) {
+      const cleaned = m.content.replace(pattern.strip, "");
+      console.log("Found matching message:", cleaned);
+      return cleaned;
+    }
+  }
+
+  console.log("No matching message found.");
+  return "";
 }
 
 // Append a message to the chatbox
@@ -154,14 +170,14 @@ function appendMessage(role, text, suppressTTS = false) {
 
     // Speak if the message is from assistant and on the listening mode
     if (role === "assistant" && listening && !suppressTTS) {
-    if (currentPage === "confirm_transfer.html" || currentPage === "confirm_bill.html" || currentPage === "success.html") {
+      if (currentPage === "confirm_transfer.html" || currentPage === "confirm_bill.html" || currentPage === "payee_added.html" || currentPage === "success.html") {
         console.log("Confirm transfer page detected, checking for summary");
         const userLog = getSummary();
         if (userLog) {
             speak(userLog);
         }
-    }
-    speak(text);
+      }
+      speak(text);
     }
 }
 
@@ -230,6 +246,28 @@ function updateSubstepFlagsForTransferSomeone() {
     return substep_flags;
 }
 
+function updateSubstepFlagsForAddPayeeForm() {
+  const substep_flags = {};
+
+  try {
+    const parentDoc = window.parent.document;
+    const payee = parentDoc.querySelector("#payee-name");
+    const account = parentDoc.querySelector("#account-number");
+
+    if (payee && payee.value.trim() !== "") {
+      substep_flags.name_filled = true;
+    }
+
+    if (account && /^\d{11}$/.test(account.value.trim())) {
+      substep_flags.account_filled = true;
+    }
+  } catch (e) {
+    console.warn("Unable to access parent form fields:", e);
+  }
+
+  return substep_flags;
+}
+
 
 // OPTION1: TTS function using server-side API
 // async function speak(text) {
@@ -296,8 +334,8 @@ function speak(text) {
 // 1) The user types a message (e.g., "what's next?") 
 // 2) the page auto-resumes on load (newPageLoaded=True)
 // 3) a field is updated (e.g., "from account" or "amount" in the transfer process)
-async function sendMessage(newPageLoaded = false, substepUpdated = false, overrideTranscript = null) {
-    console.log("sendMessage called (newPageLoaded, substepUpdated, overrideTranscript)", newPageLoaded, substepUpdated, overrideTranscript);
+async function sendMessage(newPageLoaded = false, overrideTranscript = null) {
+    console.log("sendMessage called (newPageLoaded, substepUpdated, overrideTranscript)", newPageLoaded, overrideTranscript);
     const input = document.getElementById("chat-input");
     const message = newPageLoaded ? "resuming" : (overrideTranscript ? overrideTranscript : input.value.trim()); // Get user input or use overrideMessage if auto is true.
     if (!message && !newPageLoaded) return; // Don't send empty messages unless the page just loaded.
@@ -308,6 +346,10 @@ async function sendMessage(newPageLoaded = false, substepUpdated = false, overri
     // This is used to track the user's progress in the transfer process.
     if (currentPage === "send_to_alex.html" || currentPage === "pay_bell.html") {
         substep_flags = updateSubstepFlagsForTransferSomeone();
+        }
+
+    if (currentPage === "add_payee.html") {
+        substep_flags = updateSubstepFlagsForAddPayeeForm();
     }
 
     // Append the message to the chat history and display it
@@ -363,39 +405,55 @@ async function sendMessage(newPageLoaded = false, substepUpdated = false, overri
     // and sends them to the main page after a short delay.
     // Dehighlight anything from the last step
     dehighlightAll();
+    
     if (Array.isArray(data.action)) {
-    data.action.forEach((act) => {
+      data.action.forEach((act) => {
         if (!act || typeof act !== "object") return;
 
-        // TELLER SPECIFIC
-        // 1) Show any immediate reply first so users see it before navigation
+        // 1) Show any immediate reply first
         if (act.immediate_reply) {
-        appendMessage("assistant", act.immediate_reply);
-        chatHistory.push({ role: "assistant", content: act.immediate_reply });
-        sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+          appendMessage("assistant", act.immediate_reply);
+          chatHistory.push({ role: "assistant", content: act.immediate_reply });
+          sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
         }
 
-        // 2) Highlight only if we actually have a selector
+        // 2) If we have an explicit selector, highlight and remember it
         if (act.selector) {
-        try { highlight(act.selector); } catch (e) { console.warn("highlight failed:", e); }
+          try {
+            highlight(act.selector);
+            lastHighlightedSelector = act.selector; // <-- remember latest
+          } catch (e) {
+            console.warn("highlight failed:", e);
+          }
         }
 
-        // 3) Figure out delay (action-specific delay overrides global)
+        // 3) Delay (action-specific overrides global)
         const delay = Number.isFinite(act?.delay) ? act.delay : waitToTakeAction;
 
         // 4) Perform the action
         setTimeout(() => {
-        try {
-            // If the action doesn't need a selector (e.g., navigate), allow it to run
-            performAction(act.selector || null, act.action, act.value);
-        } catch (e) {
-            console.error("performAction error:", e, act);
-        }
-        }, delay);
-    });
-}
+          try {
+            // Fallback: if this is a click with no selector, use the last highlighted one
+            let selectorToUse = act.selector;
+            if (!selectorToUse && act.action === "click" && lastHighlightedSelector) {
+              selectorToUse = lastHighlightedSelector;
+              // (optional) re-highlight to give visual feedback
+              try { highlight(selectorToUse); } catch (_) {}
+            }
 
-}
+            if (!selectorToUse && act.action === "click") {
+              console.warn("Click action received with no selector and no fallback available.");
+            }
+
+            performAction(selectorToUse || null, act.action, act.value);
+          } catch (e) {
+            console.error("performAction error:", e, act);
+          }
+        }, delay);
+      });
+    }
+  }
+
 
 // runs only once when chatbot.html is first rendered in the browser (i.e., when the iframe is inserted into the DOM and loads the chatbot page).
 window.addEventListener("DOMContentLoaded", () => {
@@ -456,17 +514,28 @@ window.addEventListener("DOMContentLoaded", () => {
     }
     });
 
-    // If the current page is "send_to_alex.html", set up event listeners for the parent form fields
     // This is to ensure that the chatbot can update the substep flags when the elements got selects
     if (window.parent.location.pathname.endsWith("pay_bell.html") || window.parent.location.pathname.endsWith("send_to_alex.html")) {
         console.log("Setting up event listeners for pay_bell.html");
         let parentDoc = window.parent.document;
         parentDoc.querySelector("#from-account")?.addEventListener("change", () => {
-            sendMessage(newPageLoaded = true);
+            sendMessage(true);
         });
 
         parentDoc.querySelector("#amount")?.addEventListener("change", () => {
-            sendMessage(newPageLoaded = true);
+            sendMessage(true);
+        });
+    }
+
+    // Using change instead of input for the payee form to avoid too many events
+    if (window.parent.location.pathname.endsWith("add_payee.html")) {
+        let parentDoc = window.parent.document;
+        parentDoc.querySelector("#payee-name")?.addEventListener("change", () => {
+            sendMessage(true);
+        });
+        
+        parentDoc.querySelector("#account-number")?.addEventListener("change", () => {
+            sendMessage(true);
         });
     }
 });
@@ -478,7 +547,7 @@ window.addEventListener("message", (event) => {
         console.log("Received log message from parent:", text);
         logUserAction(text);
         // console.log("Calling sendMessage() because of log instruction");
-        // sendMessage(true, false, null)
+        // sendMessage(true, null)
     }
 });
 
@@ -511,7 +580,7 @@ if (recognition) {
         const transcript = event.results[0][0].transcript;
         console.log("Calling sendMessage on speech recognition result:", transcript);
         // Send the recognized speech as a message
-        sendMessage(false, false, transcript);
+        sendMessage(false, transcript);
     };
 
     recognition.onerror = function(event) {

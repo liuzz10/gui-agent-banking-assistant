@@ -18,6 +18,7 @@
   </nav>
 
   <div class="content">
+    <button class="button" onclick="window.history.back()">⬅  Back</button>
     <h2>Add a Payee</h2>
 
     <div class="account-box">
@@ -29,20 +30,20 @@
       <p style="color: #666; font-size: 0.9em; margin-bottom: 20px;">Your account number will be 11 numbers long.</p>
 
       <div>
-        <button class="button" onclick="window.location.href='pay_bill.html'">Cancel</button>
-        <button id="add-payee-btn" class="button button-primary" onclick="handleAddPayee()" disabled>Add a Payee</button>
+        <button id="cancel" class="button" onclick="window.location.href='pay_bill.html'">Cancel</button>
+        <button id="add-payee" class="button button-primary" onclick="handleAddPayee()" disabled>Add a Payee</button>
       </div>
     </div>
   </div>
 
-  <iframe src="../../tutorbot.html" class="chatbot-frame"></iframe>
-  <!-- <iframe src="../../tellerbot.html" class="chatbot-frame"></iframe> -->
+  <!-- <iframe src="../../tutorbot.html" class="chatbot-frame"></iframe> -->
+  <iframe src="../../tellerbot.html" class="chatbot-frame"></iframe>
 
 <script>
   document.addEventListener("DOMContentLoaded", () => {
     const nameInput = document.getElementById('payee-name');
     const acctInput = document.getElementById('account-number');
-    const addBtn = document.getElementById('add-payee-btn');
+    const addBtn = document.getElementById('add-payee');
 
     function validateInputs() {
       const name = nameInput.value.trim();
@@ -63,12 +64,110 @@
         return;
       }
 
-    //   alert(`Payee "${name}" added successfully.`);
-    //   window.location.href = "pay_bill.html";
     const query = new URLSearchParams({ name, account: acct }).toString();
     window.location.href = `confirm_payee.html?${query}`;
         };
     });
+
+  let lastHighlightedSelector = null;
+
+  // Take action based on messages from the chatbot
+  let assistant = "grace"; // Default assistant
+
+  window.addEventListener("message", (event) => {
+    // 🔹 First handle assistant assignment
+    if (event.data?.instruction === "sendAssistant" && event.data.assistant) {
+    assistant = event.data.assistant;
+    sessionStorage.setItem("assistant", assistant);
+    console.log("✅ Assistant set to:", assistant);
+    return;  // ✅ Important: stop further processing for this message
+    }
+
+    // Basic guards
+    if (!event.data || typeof event.data !== "object") return;
+    if (!("instruction" in event.data)) return;
+
+    const { selector, instruction, value } = event.data;
+    console.log("Received message from chatbot:", selector, instruction, value);
+    if (typeof instruction !== "string") return;
+
+    // 🔙 Handle global navigation actions (no selector required)
+    if (instruction === "navigate") {
+      if (value === "back") window.history.back();
+      else if (value === "forward") window.history.forward();
+      else if (value === "reload") window.location.reload();
+      return; // nothing else to do
+    }
+
+    // For the rest, selector is expected; bail if it's not a string
+    if (typeof selector !== "string") return;
+
+    lastHighlightedSelector = selector;
+    const elements = document.querySelectorAll(selector);
+
+    if (instruction === "highlight") {
+    elements.forEach(el => el.classList.add("highlight"));
+    }
+    if (instruction === "mark-complete") {
+    elements.forEach(el => el.classList.remove("highlight"));
+    }
+    if (instruction === "fill") {
+    elements.forEach(el => {
+        if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+        el.value = value || "";
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+    });
+    }
+    if (instruction === "select") {
+      console.log("Selecting element:", elements, value);
+      elements.forEach(el => {
+          if (el.tagName === "SELECT") {
+          el.value = value || "";
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+      });
+    }
+    if (instruction === "click") {
+        elements.forEach(el => {
+        const event = new MouseEvent("click", {
+            bubbles: true,
+            cancelable: true,
+            view: window
+        });
+        el.dispatchEvent(event);
+        });
+    }
+    if (instruction === "check") {
+      elements.forEach(el => {
+        if (el.tagName === "INPUT" && el.type === "checkbox") {
+          el.checked = true;
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      });
+    }
+
+    if (instruction === "uncheck") {
+      elements.forEach(el => {
+        if (el.tagName === "INPUT" && el.type === "checkbox") {
+          el.checked = false;
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      });
+    }
+
+    if (instruction === "submit") {
+    elements.forEach(el => {
+        if (el.tagName === "FORM") {
+        el.submit();
+        }
+    });
+    }
+  });
+
 </script>
 
 </body>
