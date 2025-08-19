@@ -170,12 +170,14 @@ function appendMessage(role, text, suppressTTS = false) {
 
     // Speak if the message is from assistant and on the listening mode
     if (role === "assistant" && listening && !suppressTTS) {
-      if (currentPage === "confirm_transfer.html" || currentPage === "confirm_bill.html" || currentPage === "payee_added.html" || currentPage === "success.html") {
-        console.log("Confirm transfer page detected, checking for summary");
-        const userLog = getSummary();
-        if (userLog) {
-            speak(userLog);
-        }
+      const lastUserMsg = [...chatHistory].reverse().find(m => m.role === "user");
+      if (
+        lastUserMsg &&
+        lastUserMsg.content.trim().match(/^(✅|🎉)/) // starts with check OR party popper
+      ) {
+        // Remove the leading emoji + spaces before speaking
+        const cleaned = lastUserMsg.content.trim().replace(/^(✅|🎉)\s*/, "");
+        speak(cleaned);
       }
       speak(text);
     }

@@ -27,7 +27,7 @@
         <p>Account Number: 87223312227</p>
         <p id="account-display"></p>
         <p id="amount-display"></p>
-        <p id="autopay-display"></p>
+        <button id="autopay">Set up an autopay</p>
       </div>
 
       <br><br>
@@ -42,12 +42,12 @@
     const params = new URLSearchParams(window.location.search);
     const amount = params.get("amount");
     const account = params.get("account");
-    const autoPay = params.get("autopay") === "1";
+    // const autoPay = params.get("autopay") === "1";
 
     document.getElementById("amount-display").textContent = `Amount: $${amount}`;
     document.getElementById("account-display").textContent = `From: ${account.charAt(0).toUpperCase() + account.slice(1)} Account`;
-    document.getElementById("autopay-display").textContent =
-    autoPay ? "Auto-pay set: Yes (monthly)" : "Auto-pay set: No";
+    // document.getElementById("autopay-display").textContent =
+    // autoPay ? "Auto-pay set: Yes (monthly)" : "Auto-pay set: No";
 
     window.addEventListener("message", (event) => {
         // 🔹 First handle assistant assignment

@@ -155,7 +155,7 @@ CLASSIFICATION_DECISION_PROMPT = (
     "'{label_list}'.\n\n"
     "If the user's goal is clear, reply with exactly one of the option names.\n"
     "If the user's goal is unclear, ambiguous, or missing, respond with exactly: clarification_required."
-    "Do not add any punctuation or extra words other than the option name or 'clarification_required'."
+    "Do not add any punctuation or extra words other than one of the provided options or 'clarification_required'."
 )
 # Stage 2: Generate a clarification question
 CLARIFICATION_PROMPT = (
@@ -478,7 +478,7 @@ pay_bill_teller = OrderedDict({
                 "prompt": "The user is on the page of selecting a recipient of a potential bill payment. There are 3 recipients on the page. Your goal is to guide the user through selecting the intended recipient.",
                 "options": {
                     "Bell": {
-                        "action": [{"action": "highlight", "selector": "#payee-bell", "immediate_reply": "Can you confirm that you're paying your bill to Bell?"}]
+                        "action": [{"action": "highlight", "selector": "#bell", "immediate_reply": "Can you confirm that you're paying your bill to Bell?"}]
                     },
                     "BC Hydro": {},
                     "Telus Mobile": {},

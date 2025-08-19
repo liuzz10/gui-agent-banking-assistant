@@ -26,7 +26,7 @@
         <p>Account Number: 87223312227</p>
         <p id="account-display"></p>
         <p id="amount-display"></p>
-        <p id="autopay-display"></p>
+        <!-- <p id="autopay-display"></p> -->
         <button id="cancel-button" class="button" onclick="window.location.href='pay_bill.html'">Cancel</button>
         <button id="confirm-button" class="button button-primary">Confirm</button>
       </div>
@@ -40,11 +40,11 @@
     const params = new URLSearchParams(window.location.search);
     const amount = params.get("amount");
     const account = params.get("account");
-    const autoPay = params.get("autopay") === "1"; // or === "true"
+    // const autoPay = params.get("autopay") === "1"; // or === "true"
 
     document.getElementById("amount-display").innerText = `Amount: $${amount}`;
     document.getElementById("account-display").innerText = `From: ${account.charAt(0).toUpperCase() + account.slice(1)} Account`;
-    document.getElementById("autopay-display").innerText = autoPay ? "Auto-pay: Yes (monthly)" : "Auto-pay: No";
+    // document.getElementById("autopay-display").innerText = autoPay ? "Auto-pay: Yes (monthly)" : "Auto-pay: No";
 
     document.getElementById("confirm-button").addEventListener("click", () => {
       const chatbotIframe = document.querySelector("iframe");
@@ -53,7 +53,7 @@
         text: `🎉 Good job! You successfully pay $${amount} from your ${account} account to Bell.`
       }, "*");
 
-      window.location.href = `success.html?amount=${amount}&account=${account}&autopay=${autoPay ? "1" : "0"}`;
+      window.location.href = `success.html?amount=${amount}&account=${account}`;
     });
 
     window.addEventListener("message", (event) => {
