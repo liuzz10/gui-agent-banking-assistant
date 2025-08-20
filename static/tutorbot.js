@@ -332,7 +332,7 @@ async function sendMessage(newPageLoaded = false, overrideTranscript = null) {
     console.log("substep_flags:", substep_flags); 
 
     // This is used to track the user's progress in the transfer process.
-    if (currentPage === "send_to_alex.html" || currentPage === "pay_bell.html") {
+    if (currentPage === "send_to_alex.html" || currentPage === "payee.html") {
         substep_flags = updateSubstepFlagsForTransferSomeone();
     }
     if (currentPage === "add_payee.html") {
@@ -475,7 +475,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
     // Set up event listeners for the parent form fields
     // This is to ensure that the chatbot can update the substep flags when the user selects
-    if (window.parent.location.pathname.endsWith("send_to_alex.html") || window.parent.location.pathname.endsWith("pay_bell.html")) {
+    if (window.parent.location.pathname.endsWith("send_to_alex.html") || window.parent.location.pathname.endsWith("payee.html")) {
         let parentDoc = window.parent.document;
         console.log("parentDoc", parentDoc);
 
@@ -488,7 +488,7 @@ window.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    if (window.parent.location.pathname.endsWith("pay_bell.html")) {
+    if (window.parent.location.pathname.endsWith("payee.html")) {
         let parentDoc = window.parent.document;
         parentDoc.querySelector("#auto-pay")?.addEventListener("change", () => {
             sendMessage(newPageLoaded = true);

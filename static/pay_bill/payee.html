@@ -33,68 +33,68 @@
       <label for="amount">Amount ($):</label><br>
       <input type="number" id="amount" placeholder="Enter amount" style="padding: 10px; width: 200px; margin-top: 10px; border-radius: 6px; border: 1px solid #ccc;"><br><br>
 
-      <!-- <label>
-        <input type="checkbox" id="auto-pay" style="margin-right: 8px;" />
-        Set up auto-pay every month
-      </label><br><br> -->
-
       <button id="cancel-button" class="button" onclick="window.location.href='pay_bill.html'">Cancel</button>
       <button id="send-button" class="button button-primary" disabled>Continue</button>
     </div>    
   </div>
 
-  <!-- <iframe src="../tutorbot.html" class="chatbot-frame"></iframe> -->
-  <iframe src="../tellerbot.html" class="chatbot-frame"></iframe>
+  <iframe src="../tutorbot.html" class="chatbot-frame"></iframe>
+  <!-- <iframe src="../tellerbot.html" class="chatbot-frame"></iframe> -->
 
   <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        const amountInput = document.getElementById("amount");
-        const accountSelect = document.getElementById("from-account");
-        const autoPayCheckbox = document.getElementById("auto-pay");
-        const sendButton = document.getElementById("send-button");
+    document.addEventListener("DOMContentLoaded", () => {
+    // Read ?name=Bell&account=87223312227 from the URL
+    const qs = new URLSearchParams(window.location.search);
+    const payeeName = qs.get("name") || "Bell";     // fallback
+    const payeeAcct = qs.get("account") || "87223312227";
 
-        // Enable the button only when amount is a valid number > 0
-        amountInput.addEventListener("input", () => {
-          const amountValue = parseFloat(amountInput.value);
-          sendButton.disabled = isNaN(amountValue) || amountValue <= 0;
-        });
+    // Update the header and account number text
+    const title = document.querySelector(".payee-box h2");
+    const acctP = document.querySelector(".payee-box p");
 
-        sendButton.addEventListener("click", () => {
-          const amount = amountInput.value;
-          const account = accountSelect.value;
-          const autoPay = autoPayCheckbox.checked;
+    if (title) title.textContent = `Pay to ${payeeName}`;
+    if (acctP) acctP.textContent = `Account Number: ${payeeAcct}`;
 
-          if (!amount) {
-            alert("Please enter an amount.");
-            return;
-          }
+    // Keep your amount/account logic as-is
+    const amountInput = document.getElementById("amount");
+    const accountSelect = document.getElementById("from-account");
+    const sendButton = document.getElementById("send-button");
 
-          // Optional: guard against the instruction placeholder
-          if (account === "instruction") {
-            alert("Please choose a from-account.");
-            return;
-          }
+    amountInput.addEventListener("input", () => {
+      const amountValue = parseFloat(amountInput.value);
+      sendButton.disabled = isNaN(amountValue) || amountValue <= 0;
+    });
 
-          // Log to the chatbot iframe
-          const chatbotIframe = document.querySelector("iframe");
-          const autoPayMsg = autoPay
-            ? " and set up monthly auto-pay"
-            : "";
-          chatbotIframe.contentWindow.postMessage({
-            instruction: "log",
-            text: `✅ You plan to pay $${amount} to Bell from your ${account} account${autoPayMsg}.`
-          }, "*");
+    sendButton.addEventListener("click", () => {
+      const amount = amountInput.value;
+      const account = accountSelect.value;
 
-          // Carry values to the next page
-          const params = new URLSearchParams({
-            amount,
-            account,
-            autopay: autoPay ? "1" : "0"   // or "true"/"false" if you prefer
-          });
+      if (!amount) {
+        alert("Please enter an amount.");
+        return;
+      }
+      if (account === "instruction") {
+        alert("Please choose a from-account.");
+        return;
+      }
 
-          window.location.href = `confirm_bill.html?${params.toString()}`;
-        });
+      // Log with dynamic payee name
+      const chatbotIframe = document.querySelector("iframe");
+      chatbotIframe.contentWindow.postMessage({
+        instruction: "log",
+        text: `✅ You plan to pay $${amount} to ${payeeName} from your ${account} account.`
+      }, "*");
+
+      // Pass payee info along to confirm_bill.html
+      const params = new URLSearchParams({
+        amount,
+        account,
+        name: payeeName,
+        acct: payeeAcct
       });
+      window.location.href = `confirm_bill.html?${params.toString()}`;
+    });
+  });
 
     // Take action based on messages from the chatbot
     let assistant = "grace"; // Default assistant
@@ -173,7 +173,6 @@
             }
           });
         }
-
         if (instruction === "uncheck") {
           elements.forEach(el => {
             if (el.tagName === "INPUT" && el.type === "checkbox") {
@@ -183,7 +182,6 @@
             }
           });
         }
-
         if (instruction === "submit") {
         elements.forEach(el => {
             if (el.tagName === "FORM") {

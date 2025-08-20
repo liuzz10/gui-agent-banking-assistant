@@ -34,8 +34,8 @@
     </div>  
   </div>
 
-  <!-- <iframe src="../tutorbot.html" class="chatbot-frame"></iframe> -->
-  <iframe src="../tellerbot.html" class="chatbot-frame"></iframe>
+  <iframe src="../tutorbot.html" class="chatbot-frame"></iframe>
+  <!-- <iframe src="../tellerbot.html" class="chatbot-frame"></iframe> -->
 
   <script>
     async function loadPayees() {
@@ -50,11 +50,14 @@
         btn.id = p.name.toLowerCase().replace(/\s+/g, "-");
         btn.textContent = `${p.name} (${p.account})`;
 
-        // navigate to /pay<Name> (remove spaces for URL safety)
         btn.onclick = () => {
-          const safeName = p.name.toLowerCase().replace(/\s+/g, "");
-          window.location.href = `pay_${safeName}.html`;
-        };
+        const safeName = p.name.toLowerCase().replace(/\s+/g, ""); 
+        const params = new URLSearchParams({ 
+          name: p.name, 
+          account: p.account, 
+        });
+        window.location.href = `payee.html?${params.toString()}`;
+      };
 
         list.appendChild(btn);
       });
@@ -156,12 +159,12 @@
           let msg;
           console.log("Current assistant", assistant)
           if (assistant.toLowerCase() === "frank") {
-            msg = `✅ I selected "Bob Chen" for you`;
+            msg = `✅ I selected "Bell" for you`;
           } else if (assistant.toLowerCase() === "grace") {
             console.log("Current assistant", assistant)
-            msg = `✅ You selected "Bob Chen"`;
+            msg = `✅ You selected "Bell"`;
           } else {
-            msg = `✅ "Bob Chen" selected`; // fallback/default
+            msg = `✅ "Bell" selected`; // fallback/default
           }
 
           chatbotIframe.contentWindow.postMessage({

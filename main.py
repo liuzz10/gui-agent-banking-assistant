@@ -377,7 +377,7 @@ pay_bill_tutor = OrderedDict({
             }
         })
     },
-    "pay_bell.html": {
+    "payee.html": {
         "substeps": OrderedDict({
             "choose_account": {
                 "immediate_reply": "Please choose the account you want to transfer from.",
@@ -495,7 +495,7 @@ pay_bill_teller = OrderedDict({
             }
         })
     },
-    "pay_bell.html": {
+    "payee.html": {
         "substeps": OrderedDict({
             "choose_account": {
                 "immediate_reply": "Which account do you want to pay from?",
@@ -577,6 +577,7 @@ pay_bill_teller = OrderedDict({
                 "dynamic_handler": "fill_handler",
                 "field": "Payee's name",
                 "value": "It will be an organization name.", 
+                "example": "e.g. Bell, BC Hydro, Telus Mobile",
                 "action": [{"action": "fill", "selector": "#payee-name", "immediate_reply": "I'm filling in the name for you."}],  # Grace will highlight the account selector for the user
                 "completion_condition": "name_filled",  # flag name
             },
@@ -1124,7 +1125,14 @@ def fill_handler(substep, messages, intent, new_page_loaded):
     field=substep.get("field", "")
     value = substep.get("value", "")
     print("calling API 1")
-    filled_value = api_call(FILL_PROMPT.format(field=field, value=value), recent_messages)
+
+    prompt = FILL_PROMPT.format(field=field, value=value)
+
+    example = substep.get("example")
+    if example:
+        prompt += "\n\nExample qualified answers are: " + example
+
+    filled_value = api_call(prompt, recent_messages)
     print("Filled value:", filled_value)
 
     # extract just the number
