@@ -38,26 +38,26 @@ client = AzureOpenAI(
 )
 
 
-CLICK_ETRANSFER_BTN_PROMPT = '''
-You are helping the user transfer money. Your job is to guide the user to click the "e-Transfer" tab on the top of the website. The button is highlighted in yellow and labeled "e-Transfer". If the user asks questions about the button (location, color, label, or other details), you should answer clearly. Do not exceed 80 characters or 1 sentence in your reply.
-'''
+# CLICK_ETRANSFER_BTN_PROMPT = '''
+# You are helping the user transfer money. Your job is to guide the user to click the "e-Transfer" tab on the top of the website. The button is highlighted in yellow and labeled "e-Transfer". If the user asks questions about the button (location, color, label, or other details), you should answer clearly. Do not exceed 80 characters or 1 sentence in your reply.
+# '''
 
-CLICK_ETRANSFER_BTN_PROMPT_FRANK = '''
-You are helping the user transfer money. Your job is to click the "e-Transfer" tab on the top of the website for the user. The button is highlighted in yellow and labeled "e-Transfer". If the user asks questions about the button (location, color, label, or other details), you should answer clearly. Do not exceed 80 characters or 1 sentence in your reply.
-'''
+# CLICK_ETRANSFER_BTN_PROMPT_FRANK = '''
+# You are helping the user transfer money. Your job is to click the "e-Transfer" tab on the top of the website for the user. The button is highlighted in yellow and labeled "e-Transfer". If the user asks questions about the button (location, color, label, or other details), you should answer clearly. Do not exceed 80 characters or 1 sentence in your reply.
+# '''
 
-CHECK_TRANSFEREE_PROMPT = '''
-You are helping the user transfer money.
-You are currently on the page of selecting a recipient. Your goal is to guide the user through selecting the intended recipient.
-First, ask the user whether the person they want to transfer to is already listed on this page. Based on the user's response:
-If the user indicates **yes**, ask them to click on the recipient.
-If the user indicates **no**, ask them to click the 'Add New Contact' button to add the recipient.
-Do not exceed 120 charaters or 2 sentences in your reply.
-'''
+# CHECK_TRANSFEREE_PROMPT = '''
+# You are helping the user transfer money.
+# You are currently on the page of selecting a recipient. Your goal is to guide the user through selecting the intended recipient.
+# First, ask the user whether the person they want to transfer to is already listed on this page. Based on the user's response:
+# If the user indicates **yes**, ask them to click on the recipient.
+# If the user indicates **no**, ask them to click the 'Add New Contact' button to add the recipient.
+# Do not exceed 120 charaters or 2 sentences in your reply.
+# '''
 
-CONFIRM_TRANSFER_PROMPT = '''
-The user is on the last step to e-transfer money. Your goal is to guide the user to double check the information and click on 'Confirm' if want to continue, otherwise click 'Cancel' to cancel the transaction.  Keep your reply short and easy to understand. Do not exceed 2 sentences.
-'''
+# CONFIRM_TRANSFER_PROMPT = '''
+# The user is on the last step to e-transfer money. Your goal is to guide the user to double check the information and click on 'Confirm' if want to continue, otherwise click 'Cancel' to cancel the transaction.  Keep your reply short and easy to understand. Do not exceed 2 sentences.
+# '''
 
 INTENT_PROMPT = '''
 You are a helpful banking assistant. Your job is to identify the user's goal. Response a goal from e_transfer (to send people money), check_activity (check account activity/balance or download statement) or pay_bill (pay bill to some company or organization).
@@ -198,7 +198,7 @@ e_transfer_tutor = OrderedDict({
         "substeps": OrderedDict({
             "click_etransfer": {
                 "immediate_reply": "Click the 'e-Transfer' button on the top of the page",
-                "prompt": CLICK_ETRANSFER_BTN_PROMPT,
+                # "prompt": CLICK_ETRANSFER_BTN_PROMPT,
                 "action": [{"action": "highlight", "selector": "#nav-transfer"}],  # Grace will highlight the button for the user
                 "desc": "Clicked the 'E-transfer' tab"
             }
@@ -209,7 +209,7 @@ e_transfer_tutor = OrderedDict({
             "select_recipient": {
                 "immediate_reply": "Please select the recipient you want to transfer money to.",
                 "action": [],
-                "prompt": CHECK_TRANSFEREE_PROMPT,
+                # "prompt": CHECK_TRANSFEREE_PROMPT,
                 "desc": "Selected the recipient"
             }
         })
@@ -242,7 +242,7 @@ e_transfer_tutor = OrderedDict({
                 "immediate_reply": "Please double-check the information and click 'Confirm' to complete the transfer, or 'Cancel' if you want to stop.",
                 "selector": "#confirm-button, #cancel-button",
                 "action": [{"action": "highlight", "selector": "#confirm-button, #cancel-button"}],  # Grace will highlight the confirm and cancel buttons for the user
-                "prompt": CONFIRM_TRANSFER_PROMPT,
+                # "prompt": CONFIRM_TRANSFER_PROMPT,
                 "desc": "Clicked 'Confirm'"
             }
         })
@@ -264,7 +264,7 @@ e_transfer_teller = OrderedDict({
         "substeps": OrderedDict({
             "click_etransfer": {
                 "immediate_reply": "I'm clicking the 'e-Transfer' button for you and you will land on the e-transfer page shortly.",
-                "prompt": CLICK_ETRANSFER_BTN_PROMPT,
+                # "prompt": CLICK_ETRANSFER_BTN_PROMPT,
                 "desc": "Clicked the 'E-transfer' tab",
                 "action": [{"action": "click", "selector": "#nav-transfer"}],  # Frank will click the button for the user
             }
@@ -337,7 +337,7 @@ e_transfer_teller = OrderedDict({
         "substeps": OrderedDict({
             "confirm_transfer": {
                 "immediate_reply": "Because this is the final step, you need to take the action yourself. Please double-check the information and click 'Confirm' to complete the transfer, or 'Cancel' if you want to stop.",
-                "prompt": CONFIRM_TRANSFER_PROMPT,
+                # "prompt": CONFIRM_TRANSFER_PROMPT,
                 "desc": "Clicked 'Confirm'",
                 "action": [{"action": "highlight", "selector": "#confirm-button, #cancel-button"}]  # Frank will click the button for the user
             }
@@ -361,7 +361,7 @@ pay_bill_tutor = OrderedDict({
         "substeps": OrderedDict({
             "click_etransfer": {
                 "immediate_reply": "Click the 'Pay Bills' button on the top of the page",
-                "prompt": CLICK_ETRANSFER_BTN_PROMPT,
+                # "prompt": CLICK_ETRANSFER_BTN_PROMPT,
                 "action": [{"action": "highlight", "selector": "#nav-paybill"}],  # Grace will highlight the button for the user
                 "desc": "Clicked the 'Pay Bill' tab"
             }
@@ -372,7 +372,7 @@ pay_bill_tutor = OrderedDict({
             "select_recipient": {
                 "immediate_reply": "Please select one of the saved payees or add a new payee.",
                 "action": [],
-                "prompt": CHECK_TRANSFEREE_PROMPT,
+                # "prompt": CHECK_TRANSFEREE_PROMPT,
                 "desc": "Selected the recipient"
             }
         })
@@ -404,7 +404,7 @@ pay_bill_tutor = OrderedDict({
             "confirm_transfer": {
                 "immediate_reply": "Please double-check the information and click 'Confirm' to complete the transfer, or 'Cancel' if you want to stop.",
                 "action": [{"action": "highlight", "selector": "#confirm-button, #cancel-button"}],  # Grace will highlight the confirm and cancel buttons for the user
-                "prompt": CONFIRM_TRANSFER_PROMPT,
+                # "prompt": CONFIRM_TRANSFER_PROMPT,
                 "desc": "Clicked 'Confirm'"
             }
         })
@@ -443,7 +443,7 @@ pay_bill_tutor = OrderedDict({
             "confirm_transfer": {
                 "immediate_reply": "Please double-check the information and click 'Confirm' to add this payee, or 'Cancel' if you want to stop.",
                 "action": [{"action": "highlight", "selector": "#confirm-button, #cancel-button"}],  # Grace will highlight the confirm and cancel buttons for the user
-                "prompt": CONFIRM_TRANSFER_PROMPT,
+                # "prompt": CONFIRM_TRANSFER_PROMPT,
             }
         })
     },
@@ -452,7 +452,7 @@ pay_bill_tutor = OrderedDict({
             "confirm_transfer": {
                 "immediate_reply": "Please click 'Back to Pay Bills' to return to the Pay Bills page.",
                 "action": [{"action": "highlight", "selector": "#back-pay-bill"}],  # Grace will highlight the confirm and cancel buttons for the user
-                "prompt": CONFIRM_TRANSFER_PROMPT,
+                # "prompt": CONFIRM_TRANSFER_PROMPT,
             }
         })
     }
@@ -463,7 +463,7 @@ pay_bill_teller = OrderedDict({
         "substeps": OrderedDict({
             "click_etransfer": {
                 "immediate_reply": "I'm clicking the 'Pay Bills' button for you and you will land on the page shortly.",
-                "prompt": CLICK_ETRANSFER_BTN_PROMPT,
+                # "prompt": CLICK_ETRANSFER_BTN_PROMPT,
                 "desc": "Clicked the 'Pay Bills' tab",
                 "action": [{"action": "click", "selector": "#nav-paybill"}],  # Frank will click the button for the user
             }
@@ -605,7 +605,7 @@ pay_bill_teller = OrderedDict({
             "confirm_transfer": {
                 "immediate_reply": "Because this is the final step, you need to take the action yourself. Click 'Confirm' to add this payee, or 'Cancel' to stop.",
                 "action": [{"action": "highlight", "selector": "#confirm-button, #cancel-button"}],  # Grace will highlight the confirm and cancel buttons for the user
-                "prompt": CONFIRM_TRANSFER_PROMPT,
+                # "prompt": CONFIRM_TRANSFER_PROMPT,
             }
         })
     },
@@ -1296,55 +1296,6 @@ def handle_first_incomplete_substep(substeps, substep_flags, messages, intent, n
                 return fill_handler(substep, messages, intent, new_page_loaded)
             elif handler_type == "checkbox_handler":
                 return checkbox_handler(substep, messages, intent, new_page_loaded)
-            # elif handler_type == "collect_then_act":
-            #     print("Current state:", state)
-            #     # Step 1: Initial guidance message if state is empty
-            #     if not state:
-            #         return {
-            #             "intent": intent,
-            #             "botMessage": substep["immediate_reply"],
-            #             "state": substep["state"],
-            #         }
-
-            #     # Step 2: If state is partially filled, continue data collection
-            #     elif not (state.get("account") and state.get("amount")):
-            #         print("step 2")
-            #         gpt_response = run_conversational_agent(
-            #             messages=messages,
-            #             current_state=state,
-            #             currentPage=substep,
-            #             intent=intent,
-            #             prompt=substep.get("prompt")
-            #         )
-
-            #         # After filling both fields, return actions too
-            #         filled = gpt_response.get("state", {})
-            #         if filled.get("account") and filled.get("amount"):
-            #             gpt_response["action"] = generate_actions_from_state(filled)
-            #             gpt_response["botMessage"] += " Okay give me a moment to fill in the information."
-            #         return gpt_response
-
-            #     elif state.get("confirmed") is not True:
-            #         print("step 3")
-            #         # Step 3: If both fields are filled, confirm with user
-            #         confirmation_result = run_confirmation_agent(messages, state)
-
-            #         state = confirmation_result["state"]  
-            #         confirmation_result["action"] = [{"action": "highlight", "selector": "#send-button"}]  # ✅ important
-            #         print("Confirmation result:", confirmation_result)
-            #         if state.get("confirmed"):
-            #             return {
-            #                 "intent": intent,
-            #                 "action": substep.get("action", "")
-            #             }
-            #         else:
-            #             # Wait for user change
-            #             return confirmation_result
-            #     else:
-            #         return {
-            #             "intent": intent,
-            #             "action": substep.get("action", "")
-            #         }
 
 
 # Grace - Alex and Frank - Sam    
