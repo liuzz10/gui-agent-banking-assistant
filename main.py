@@ -334,12 +334,25 @@ e_transfer_teller = OrderedDict({
         }),  
     },
     "confirm_transfer.html": {
-        "substeps": OrderedDict({
+        "substeps": OrderedDict({         
             "confirm_transfer": {
-                "immediate_reply": "Because this is the final step, you need to take the action yourself. Please double-check the information and click 'Confirm' to complete the transfer, or 'Cancel' if you want to stop.",
-                # "prompt": CONFIRM_TRANSFER_PROMPT,
-                "desc": "Clicked 'Confirm'",
-                "action": [{"action": "highlight", "selector": "#confirm-button, #cancel-button"}]  # Frank will click the button for the user
+                "immediate_reply": "Do you want to confirm this transfer or cancel it?",
+                "dynamic_handler": "confirmation_handler",
+                "action_description": "an e-transfer to transfer money to someone",
+                "action": [{"action": "highlight", "selector": "#confirm-button", "immediate_reply": "Since this action cannot be reversed, I need you to confirm twice. Do you want to confirm this etransfer? Yes or No."}],  # Frank will click the button for the user
+                "completion_condition": "confirm_transfer",  # flag name
+            },
+            "double_confirm_transfer": {
+                "immediate_reply": "",
+                "dynamic_handler": "yesno_handler",
+                "options": {
+                    "yes": {
+                        "action": [{"action": "click", "selector": "#confirm-button", "immediate_reply": "Thank you for confirming. I'm clicking 'Confirm' for you."}]  # Frank will click the button for the user
+                    },
+                    "no": {
+                        "action": [{"action": "click", "selector": "#cancel-button", "immediate_reply": "No problem. I'm clicking 'Cancel' for you."}]  # Frank will
+                    }
+                }
             }
         })
     },
