@@ -290,7 +290,7 @@ e_transfer_teller = OrderedDict({
                 "dynamic_handler": "confirmation_handler",
                 "action": [{"action": "click", "selector": "#contact-bob", "immediate_reply": "Thank you for confirming. I'm selecting Bob Chen for you."}],  # You can generate this dynamically too
                 "completion_condition": "confirm_recipient"
-            }
+            },
         })
     },
     "send_to_alex.html": {
@@ -520,22 +520,6 @@ pay_bill_teller = OrderedDict({
                 "action": [{"action": "fill", "selector": "#amount", "immediate_reply": "I'm filling in the amount for you."}],
                 "completion_condition": "amount_entered",  # flag name
             },
-            # "setup_autopay": {
-            #     "immediate_reply": "Do you want to set up auto-pay?",
-            #     "dynamic_handler": "checkbox_handler",
-            #     "options": {
-            #         "yes": {
-            #             "action": [{"action": "check", "selector": "#auto-pay", "immediate_reply": "I'm setting up auto-pay for you."}],
-            #             "desc": "Set up auto-pay"
-            #         },
-            #         "no": {
-            #             "action": [{"action": "uncheck", "selector": "#auto-pay", "immediate_reply": "No problem, I won't set up auto-pay."}],
-            #             "desc": "Did not set up auto-pay"
-            #         }
-            #     },
-            #     "desc": "Set up auto-pay",
-            #     "completion_condition": "autopay_setup",  # flag name
-            # },
             "confirm": {
                 "immediate_reply": "Okay do you want to continue with the payment or cancel it?",
                 "dynamic_handler": "selection_handler",
@@ -547,16 +531,29 @@ pay_bill_teller = OrderedDict({
                         "action": [{"action": "click", "selector": "#send-button", "immediate_reply": "I'm clicking 'Continue' for you."}],
                     },
                 },
-            }
+            },
         }),  
     },
     "confirm_bill.html": {
         "substeps": OrderedDict({
             "confirm_transfer": {
-                "immediate_reply": "Because this is the final step, you need to take the action yourself. Please double-check the information and click 'Confirm' to complete the transfer, or 'Cancel' if you want to stop.",
-                "prompt": CONFIRM_TRANSFER_PROMPT,
-                "desc": "Clicked 'Confirm'",
-                "action": [{"action": "highlight", "selector": "#confirm-button, #cancel-button"}]  # Frank will click the button for the user
+                "immediate_reply": "Do you want to confirm this payment or cancel it?",
+                "dynamic_handler": "confirmation_handler",
+                "action_description": "a bill payment",
+                "action": [{"action": "highlight", "selector": "#confirm-button", "immediate_reply": "Since this action cannot be reversed, I need you to confirm twice. Do you want to confirm this bill payment? Yes or No."}],  # Frank will click the button for the user
+                "completion_condition": "confirm_transfer",  # flag name
+            },
+            "double_confirm_transfer": {
+                "immediate_reply": "",
+                "dynamic_handler": "yesno_handler",
+                "options": {
+                    "yes": {
+                        "action": [{"action": "click", "selector": "#confirm-button", "immediate_reply": "Thank you for confirming. I'm clicking 'Confirm' for you."}]  # Frank will click the button for the user
+                    },
+                    "no": {
+                        "action": [{"action": "click", "selector": "#cancel-button", "immediate_reply": "No problem. I'm clicking 'Cancel' for you."}]  # Frank will
+                    }
+                }
             }
         })
     },
@@ -918,7 +915,7 @@ def run_confirmation_agent(messages, state):
 
 
 # Grace - Alex
-def yesno_classification_handler(new_page_loaded, messages, substep, intent):
+def yesno_handler(new_page_loaded, messages, substep, intent):
     # 1. Ask the yes/no question if newPageLoaded
     print("====Yes/No classification handler called")
     # print("substep", substep)
@@ -1203,7 +1200,7 @@ def checkbox_handler(substep, messages, intent, new_page_loaded):
             "botMessage": "Sorry, could you please clarify if you need to set up auto pay?"
         }
 
-def confirmation_handler(substep, messages, intent) -> str:
+def confirmation_handler(substep, messages, intent, new_page_loaded) -> str:
     """
     Uses GPT to classify a user response as 'yes', 'no', or 'unclear'.
 
@@ -1215,20 +1212,28 @@ def confirmation_handler(substep, messages, intent) -> str:
         One of: "yes", "no", "unclear"
     """
     print("===Confirmation handler called")
-    action_description = substep.get("confirmation_text", "proceed with this action")
+    if new_page_loaded:
+        print("New page loaded, asking yes/no question...")
+        return {
+            "intent": intent,
+            "botMessage": substep["immediate_reply"]
+            # "botMessage": "test"
+        }
+
+    action_description = substep.get("action_description", "proceed with this action")
     # messages is a list of dicts like {"role": "user", "content": "..."}
     user_message = next(
         (m["content"] for m in reversed(messages) if m.get("role") == "user"),
         ""
     )
     prompt = f"""
-You are a confirmation assistant helping to interpret whether a user agrees to perform an action.
+You are a confirmation assistant helping to interpret user's response as 'yes', 'no', or 'unclear'.
 
-The action in question is: {action_description}
+The user is asked to confirm an action: {action_description}
 
-User message: "{user_message}"
+User message is: "{user_message}"
 
-Does the user confirm the action?
+Does the user confirm the action? If the user's response is clear and affirmative (such as 'confirm'), respond with "yes". If the user's response is clear and negative (such as 'cancel'), respond with "no".
 
 Respond with exactly one word:
 - yes
@@ -1239,13 +1244,13 @@ Do NOT explain or include any other text.
 """.strip()
 
     result = api_call(prompt, [])
-    if result == "yes":
+    if result.lower() == "yes":
         return {
             "intent": intent,
             "action": substep.get("action", []),
             "substep_flags": {substep.get("completion_condition"): True}
         }
-    elif result == "no":
+    elif result.lower() == "no":
         return {
             "intent": intent,
             "botMessage": "Okay, let me know what you'd like to do instead."
@@ -1280,11 +1285,11 @@ def handle_first_incomplete_substep(substeps, substep_flags, messages, intent, n
                     "action": substep.get("action", ""),
                 }
             elif handler_type == "yesno_handler":
-                return yesno_classification_handler(new_page_loaded, messages, substep, intent)
+                return yesno_handler(new_page_loaded, messages, substep, intent)
             elif handler_type == "classification_handler":
                 return classification_handler(substep, messages, intent, new_page_loaded)
             elif handler_type == "confirmation_handler":
-                return confirmation_handler(substep, messages, intent)
+                return confirmation_handler(substep, messages, intent, new_page_loaded)
             elif handler_type == "selection_handler":
                 return selection_handler(substep, messages, intent, new_page_loaded)
             elif handler_type == "fill_handler":
