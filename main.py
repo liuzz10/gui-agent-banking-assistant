@@ -1495,3 +1495,61 @@ async def add_payee(payee: Payee):
 @app.get("/api/payees")
 async def list_payees():
     return {"payees": payees}
+
+
+# Global list (prototype)
+autopayments = []
+
+class AutoPayment(BaseModel):
+    name: str
+    account: str
+    enabled: bool
+    amount: float
+    fromAccount: str
+    frequency: str
+    paymentDate: str
+    notify_sms: bool = False
+    notify_email: bool = False
+
+@app.post("/api/autopayments")
+async def save_autopayment(ap: AutoPayment):
+    autopayments.append(ap.dict())
+    return {"status": "success", "autopayments": autopayments}
+
+@app.get("/api/autopayments")
+async def list_autopayments():
+    return {"autopayments": autopayments}
+
+
+# --- New Alerts Example ---
+alerts = []  # simple in-memory list for demo
+
+class Alert(BaseModel):
+    card_type: str        # e.g. "Credit Card"
+    last_digits: str      # e.g. "4126"
+    threshold: float      # e.g. 100.0
+    sms: bool = False
+    email: bool = False
+    enabled: bool = False
+
+@app.post("/api/save_alert")
+async def save_alert(alert: Alert):
+    # replace existing alert for this card
+    for i, a in enumerate(alerts):
+        if a["card_type"] == alert.card_type and a["last_digits"] == alert.last_digits:
+            alerts[i] = alert.dict()
+            return {"status": "updated", "alerts": alerts}
+    alerts.append(alert.dict())
+    return {"status": "created", "alerts": alerts}
+
+
+@app.get("/api/alerts")
+async def get_alerts():
+    return {"alerts": alerts}
+
+@app.get("/api/get_alert")
+async def get_alert(card_type: str, last_digits: str):
+    for alert in alerts:
+        if alert["card_type"] == card_type and alert["last_digits"] == last_digits:
+            return {"alert": alert}
+    return {"alert": None}

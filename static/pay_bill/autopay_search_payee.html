@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Set up Auto Payments – Search Payees</title>
+  <!-- Reuse your existing CSS -->
+  <link rel="stylesheet" href="../styles.css" />
+  <style>
+    /* Page-specific light styles that complement your CSS */
+    .payee-box { background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:16px; box-shadow:0 1px 0 rgba(0,0,0,.03); }
+    .search-row { margin:10px 0; }
+    .search-input { width:80%; padding:10px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:16px; }
+    .search-hint { color:#64748b; font-size:12px }
+    .result-item { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid #e5e7eb; border-radius:6px; background:#fff; }
+    .result-item + .result-item { margin-top:10px }
+    .result-title { font-weight:700 }
+    .result-meta { color:#64748b; font-size:.9rem }
+    mark { background:#ffef9f; padding:0 2px; border-radius:3px }
+  </style>
+</head>
+<body>
+  <nav>
+    <h1>My Online Bank</h1>
+    <div class="nav-buttons">
+      <button onclick="window.location.href='../index.html'">Accounts</button>
+      <button onclick="window.location.href='../pay_bill/pay_bill.html'">Pay Bills</button>
+      <button onclick="window.location.href='../etransfer/etransfer.html'">e‑Transfer</button>
+      <button id="nav-services" onclick="window.location.href='../services/services.html'">Bank Services</button>
+      <button id="nav-profile" onclick="window.location.href='../profile/profile.html'">Profile & Settings</button>
+    </div>
+  </nav>
+
+  <div class="content accounts-section">
+    <div class="section-head">
+      <h2 class="h2">Set up Auto Payments</h2>
+      <button class="print-btn" onclick="window.print()"><span class="print-icon"></span>PRINT</button>
+    </div>
+    <p>Recurring bill payments help you stay on top of expenses by paying them automatically. Once set up, your bills—like utilities, phone, or internet—are always paid on time.</p>
+
+    <button class="button" onclick="window.history.back()">⬅ Back</button>
+
+    <div class="payee-box" aria-labelledby="your-payees">
+      <div class="section-head" style="margin-bottom:6px">
+        <h3 id="your-payees" class="section-head__title">Your Payees</h3>
+      </div>
+
+      <div class="search-row">
+        <input id="search" class="search-input" type="search" placeholder="Search your Payees" aria-describedby="hint" autocomplete="off" />
+        <div id="hint" class="search-hint">Enter a min. of 1 character</div>
+      </div>
+
+      <div class="payee-list" id="results" role="list" aria-live="polite"></div>
+    </div>
+  </div>
+
+    <!-- <iframe src="../tutorbot.html" class="chatbot-frame"></iframe> -->
+  <iframe src="../tellerbot.html" class="chatbot-frame"></iframe>
+
+  <script>
+    const resultsEl = document.getElementById('results');
+    const searchEl = document.getElementById('search');
+    let allPayees = [];
+
+    function highlight(text, query){
+      if(!query) return text;
+      const esc = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return text.replace(new RegExp(esc, 'ig'), m => `<mark>${m}</mark>`);
+    }
+
+    function render(list, query=''){
+      resultsEl.innerHTML = '';
+      if(list.length === 0){
+        const empty = document.createElement('div');
+        empty.className = 'result-meta';
+        empty.textContent = 'No payees found.';
+        resultsEl.appendChild(empty);
+        return;
+      }
+      list.forEach(p => {
+        const row = document.createElement('div');
+        row.className = 'result-item';
+        row.setAttribute('role','listitem');
+        row.innerHTML = `
+          <div>
+            <div class="result-title">${highlight(p.name, query)}</div>
+            <div class="result-meta">Account: ${p.account || '—'}${p.category ? ` • ${p.category}` : ''}</div>
+          </div>
+          <button class="button button-primary" aria-label="Set up auto payment for ${p.name}">Set up</button>
+        `;
+        row.querySelector('button').addEventListener('click', () => {
+          const params = new URLSearchParams({ name: p.name, account: p.account || '' });
+          window.location.href = `autopay_setup.html?${params.toString()}`;
+        });
+        resultsEl.appendChild(row);
+      });
+    }
+
+    async function loadPayees(){
+      try{
+        const res = await fetch('/api/payees');
+        if(!res.ok) throw new Error('Failed to fetch payees');
+        const data = await res.json();
+        allPayees = Array.isArray(data?.payees) ? data.payees : [];
+        render(allPayees);
+      }catch(err){
+        console.error(err);
+        resultsEl.innerHTML = '<div class="result-meta">Could not load payees right now.</div>';
+      }
+    }
+
+    // Debounced search
+    let t = null;
+    searchEl.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        const q = searchEl.value.trim().toLowerCase();
+        const filtered = q.length < 1 ? allPayees : allPayees.filter(p => (p.name||'').toLowerCase().includes(q));
+        render(filtered, q);
+      }, 120);
+    });
+
+    loadPayees();
+  </script>
+</body>
+</html>

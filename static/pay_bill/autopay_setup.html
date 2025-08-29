@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Set up Auto Payments – Payee</title>
+  <link rel="stylesheet" href="../styles.css" />
+  <style>
+    .form-card { background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:20px; box-shadow:0 1px 0 rgba(0,0,0,.04); }
+    .form-group { margin-bottom:16px; }
+    .form-group label { display:block; font-weight:600; margin-bottom:6px; }
+    .form-group input, .form-group select {
+      width:90%; padding:10px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:15px;
+    }
+    .toggle-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
+    .toggle-row h3 { margin:0; }
+    .confirm-options { margin-top:12px; }
+    .confirm-options label { display:flex; align-items:center; gap:8px; margin:6px 0; cursor:pointer; }
+    .save-row { display:flex; justify-content:flex-end; margin-top:18px; }
+    .save-row button { padding:8px 20px; }
+    .saved-btn { background:#004080; color:white; border:none; border-radius:4px; padding:8px 20px; font-weight:bold; cursor:default; opacity:0.9; }
+
+    /* Switch styles */
+    .switch { position: relative; display: inline-block; width: 50px; height: 26px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
+    .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+    input:checked + .slider { background-color: #004080; }
+    input:checked + .slider:before { transform: translateX(24px); }
+
+    /* Style for Save button before/after */
+    #saveBtn {
+      background:#ffffff;
+      color:#004080;
+      border:2px solid #004080;
+    }
+    #saveBtn.saved {
+      background:#004080;
+      color:#ffffff;
+      border:2px solid #004080;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <h1>My Online Bank</h1>
+    <div class="nav-buttons">
+      <button onclick="window.location.href='../index.html'">Accounts</button>
+      <button onclick="window.location.href='../pay_bill/pay_bill.html'">Pay Bills</button>
+      <button onclick="window.location.href='../etransfer/etransfer.html'">e-Transfer</button>
+      <button onclick="window.location.href='../services/services.html'">Bank Services</button>
+      <button onclick="window.location.href='../profile/profile.html'">Profile & Settings</button>
+    </div>
+  </nav>
+
+  <div class="content accounts-section">
+    <div class="section-head">
+      <a href="autopay_search_payee.html" class="link-btn">⬅ Set up Auto Payments</a>
+      <button class="print-btn" onclick="window.print()"><span class="print-icon"></span>PRINT</button>
+    </div>
+
+    <h2 class="h2" id="payee-title">Payee</h2>
+
+    <div class="form-card">
+      <div class="toggle-row">
+        <h3 id="toggleLabel">Auto Payment Off</h3>
+        <label class="switch">
+          <input type="checkbox" id="toggleAuto" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label for="amount">Amount</label>
+        <input id="amount" type="text" placeholder="Input amount" />
+      </div>
+
+      <div class="form-group">
+        <label for="account">From your account</label>
+        <select id="account">
+          <option value="" disabled selected>Choose your account</option>
+          <option value="chequing">Chequing Account</option>
+          <option value="savings">Savings Account</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="frequency">Frequency</label>
+        <select id="frequency">
+          <option>Once</option>
+          <option>Weekly</option>
+          <option>Bi-weekly</option>
+          <option>Monthly</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="date">Payment Date</label>
+        <input id="date" type="date" />
+        <small>MM/DD/YYYY</small>
+      </div>
+
+      <div class="confirm-options">
+        <p><strong>Send me a confirmation when this payment is made:</strong></p>
+        <label><input type="checkbox" id="smsOpt" /> SMS text to +1 000 999 9999</label>
+        <label><input type="checkbox" id="emailOpt" /> youremail@mailbox.ca</label>
+      </div>
+
+      <div class="save-row">
+        <button id="saveBtn" class="button button-primary">SAVE</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Read params from previous page
+    const params = new URLSearchParams(window.location.search);
+    const payeeName = params.get('name');
+    if (payeeName) {
+      document.getElementById('payee-title').textContent = payeeName;
+    }
+
+    // Toggle label text
+    const toggle = document.getElementById('toggleAuto');
+    toggle.setAttribute('role','switch');
+    toggle.setAttribute('aria-checked', String(toggle.checked));
+    toggle.addEventListener('change', () => {
+      const label = document.getElementById('toggleLabel');
+      label.textContent = toggle.checked ? 'Auto Payment On' : 'Auto Payment Off';
+      toggle.setAttribute('aria-checked', String(toggle.checked));
+    });
+
+    // Save button behavior
+    const saveBtn = document.getElementById('saveBtn');
+    saveBtn.addEventListener('click', async () => {
+      // Build payload
+      const payload = {
+        name: document.getElementById('payee-title').textContent,
+        account: document.getElementById('account').value,
+        enabled: true,
+        amount: document.getElementById('amount').value,
+        fromAccount: document.getElementById('account').value,
+        frequency: document.getElementById('frequency').value,
+        paymentDate: document.getElementById('date').value,
+        notify_sms: document.getElementById('smsOpt').checked,
+        notify_email: document.getElementById('emailOpt').checked
+      };
+
+      try {
+        const res = await fetch('/api/autopayments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        console.log('Saved autopayment:', data);
+
+        // Update UI to Saved state
+        saveBtn.textContent = 'SAVED';
+        saveBtn.classList.add('saved');
+        saveBtn.disabled = true;
+
+        if (!toggle.checked) {
+          toggle.checked = true;
+          document.getElementById('toggleLabel').textContent = 'Auto Payment On';
+        }
+      } catch (err) {
+        console.error('Failed to save autopayment', err);
+        alert('⚠️ Could not save autopayment. Please try again.');
+      }
+    });
+
+    // Default date = today
+    const today = new Date();
+    document.getElementById('date').value = today.toISOString().split('T')[0];
+  </script>
+</body>
+</html>

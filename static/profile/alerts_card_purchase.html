@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Card Purchase Alerts</title>
+  <link rel="stylesheet" href="../styles.css" />
+  <style>
+    .card {
+      background:#fff;
+      border:1px solid #e5e7eb;
+      border-radius:8px;
+      padding:16px;
+      margin-bottom:16px;
+      box-shadow:0 1px 0 rgba(0,0,0,.04);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      cursor:pointer;
+      transition:background .15s ease;
+    }
+    .card:hover { background:#f9fafb; }
+    .card h3 {
+      margin:0;
+      font-size:1.1rem;
+      font-weight:700;
+      color:#0b4c8c;
+    }
+    .card p {
+      margin:2px 0 0;
+      color:#475569;
+      font-size:0.95rem;
+    }
+    .arrow {
+      font-size:1.2rem;
+      color:#475569;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <h1>My Online Bank</h1>
+    <div class="nav-buttons">
+      <button onclick="window.location.href='../index.html'">Accounts</button>
+      <button onclick="window.location.href='../pay_bill/pay_bill.html'">Pay Bills</button>
+      <button onclick="window.location.href='../etransfer/etransfer.html'">e-Transfer</button>
+      <button onclick="window.location.href='../services/services.html'">Bank Services</button>
+      <button class="active-tab" onclick="window.location.href='../profile/profile.html'">Profile & Settings</button>
+    </div>
+  </nav>
+
+  <div class="content accounts-section">
+    <div class="section-head">
+      <a href="alerts.html" class="link-btn">⬅ Manage My Alerts</a>
+      <button class="print-btn" onclick="window.print()"><span class="print-icon"></span>PRINT</button>
+    </div>
+
+    <h2 class="h2">Card Purchase Alerts</h2>
+    <p>Select a card to customize its alerts.</p>
+
+    <div class="card" onclick="alert('Chequing Account selected')">
+      <div>
+        <h3>Chequing Account</h3>
+        <p>5438</p>
+      </div>
+      <span class="arrow">›</span>
+    </div>
+
+    <div class="card" onclick="alert('Savings Account selected')">
+      <div>
+        <h3>Savings Account</h3>
+        <p>4320</p>
+      </div>
+      <span class="arrow">›</span>
+    </div>
+
+    <div class="card" onclick="window.location.href='alerts_creditcard.html'">
+      <div>
+        <h3>Credit Card</h3>
+        <p>4126</p>
+      </div>
+      <span class="arrow">›</span>
+    </div>
+  </div>
+</body>
+</html>

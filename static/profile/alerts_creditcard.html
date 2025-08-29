@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Credit Card Alerts</title>
+  <link rel="stylesheet" href="../styles.css" />
+  <style>
+    .form-card { background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:20px; box-shadow:0 1px 0 rgba(0,0,0,.04); }
+    .toggle-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
+    .toggle-row h3 { margin:0; }
+    .form-group { margin-bottom:16px; }
+    .form-group label { display:block; font-weight:600; margin-bottom:6px; }
+    .form-group input { width:80%; padding:10px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:15px; }
+    .preset-buttons { display:flex; gap:10px; margin-top:8px; }
+    .preset-buttons button {
+      border:1px solid #004080;
+      background:#fff;
+      color:#004080;
+      padding:6px 14px;
+      border-radius:6px;
+      font-weight:600;
+      cursor:pointer;
+    }
+    .preset-buttons button:hover { background:#f1f5f9; }
+    .confirm-options { margin-top:16px; }
+    .confirm-options label { display:flex; align-items:center; gap:8px; margin:6px 0; cursor:pointer; }
+    .save-row { display:flex; justify-content:flex-end; margin-top:18px; }
+    #saveBtn {
+      background:#fff;
+      color:#004080;
+      border:2px solid #004080;
+      padding:8px 20px;
+      border-radius:6px;
+      font-weight:bold;
+      cursor:pointer;
+    }
+    #saveBtn.saved {
+      background:#004080;
+      color:#fff;
+    }
+    /* Switch styles */
+    .switch{position:relative;display:inline-block;width:48px;height:28px}
+    .switch input{opacity:0;width:0;height:0}
+    .slider{position:absolute;cursor:pointer;inset:0;background:#cbd5e1;transition:background .2s; border-radius:999px;}
+    .slider:before{content:"";position:absolute;height:22px;width:22px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform .2s}
+    .switch input:checked + .slider{background:#004080}
+    .switch input:checked + .slider:before{transform:translateX(20px)}
+  </style>
+</head>
+<body>
+  <nav>
+    <h1>My Online Bank</h1>
+    <div class="nav-buttons">
+      <button onclick="window.location.href='../index.html'">Accounts</button>
+      <button onclick="window.location.href='../pay_bill/pay_bill.html'">Pay Bills</button>
+      <button onclick="window.location.href='../etransfer/etransfer.html'">e-Transfer</button>
+      <button onclick="window.location.href='../services/services.html'">Bank Services</button>
+      <button class="active-tab" onclick="window.location.href='../profile/profile.html'">Profile & Settings</button>
+    </div>
+  </nav>
+
+  <div class="content accounts-section">
+    <div class="section-head">
+      <a href="alerts_card_purchase.html" class="link-btn">⬅ Card Purchase Alerts</a>
+      <button class="print-btn" onclick="window.print()"><span class="print-icon"></span>PRINT</button>
+    </div>
+
+    <h2 class="h2">Credit Card - 4126</h2>
+    <p>We’ll notify you whenever a purchase, cash advance, or payment on your credit card goes over the amount you choose.</p>
+
+    <div class="form-card">
+      <div class="toggle-row">
+        <h3 id="toggleLabel">Alert Off</h3>
+        <label class="switch">
+          <input type="checkbox" id="toggleAlert" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label for="amount">Alert me when it’s over:</label>
+        <input id="amount" type="number" placeholder="Enter amount" />
+        <div class="preset-buttons">
+          <button data-val="10">$10</button>
+          <button data-val="100">$100</button>
+          <button data-val="500">$500</button>
+        </div>
+      </div>
+
+      <div class="confirm-options">
+        <p><strong>Send alert to:</strong></p>
+        <label><input type="checkbox" id="smsOpt" checked /> SMS text to +1 000 999 9999</label>
+        <label><input type="checkbox" id="emailOpt" /> youremail@mailbox.ca</label>
+      </div>
+
+      <div class="save-row">
+        <button id="saveBtn">SAVE</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const toggle = document.getElementById("toggleAlert");
+  const saveBtn = document.getElementById("saveBtn");
+
+  // toggle label
+  toggle.addEventListener("change", () => {
+    document.getElementById("toggleLabel").textContent =
+      toggle.checked ? "Alert On" : "Alert Off";
+  });
+
+  // quick preset amounts
+  document.querySelectorAll(".preset-buttons button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.getElementById("amount").value = btn.dataset.val;
+    });
+  });
+
+  // save handler
+  saveBtn.addEventListener("click", async () => {
+    // ensure switch is ON before saving
+    if (!toggle.checked) {
+      toggle.checked = true;
+      toggle.dispatchEvent(new Event("change"));
+    }
+
+    const alertData = {
+      card_type: "Credit Card",
+      last_digits: "4126",
+      threshold: parseFloat(document.getElementById("amount").value || "0"),
+      sms: document.getElementById("smsOpt").checked,
+      email: document.getElementById("emailOpt").checked,
+      enabled: toggle.checked
+    };
+
+    try {
+      const res = await fetch("/api/save_alert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(alertData)
+      });
+      if (!res.ok) throw new Error("Failed to save alert");
+      const data = await res.json();
+      console.log("✅ Saved alert:", data);
+
+      saveBtn.textContent = "SAVED";
+      saveBtn.classList.add("saved");
+      saveBtn.disabled = true;
+    } catch (err) {
+      console.error("❌ Error saving alert:", err);
+      alert("Could not save alert. Try again later.");
+    }
+  });
+
+  // load saved alert
+  async function loadSavedAlert() {
+    try {
+      const res = await fetch("/api/alerts");
+      if (!res.ok) return;
+      const data = await res.json();
+      console.log("Loaded alerts:", data.alerts);
+      const saved = data.alerts.find(
+        a => a.card_type === "Credit Card" && a.last_digits === "4126"
+      );
+      if (saved) {
+        document.getElementById("amount").value = saved.threshold || "";
+        document.getElementById("smsOpt").checked = !!saved.sms;
+        document.getElementById("emailOpt").checked = !!saved.email;
+        toggle.checked = !!saved.enabled;
+        toggle.dispatchEvent(new Event("change")); // ensures label + CSS update
+      }
+    } catch (err) {
+      console.warn("No saved alert found:", err);
+    }
+  }
+
+  loadSavedAlert();
+</script>
+</body>
+</html>
